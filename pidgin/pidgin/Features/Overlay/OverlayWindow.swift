@@ -35,6 +35,7 @@ final class OverlayWindow: NSPanel {
     // SwiftUI(NSViewRepresentable)와 상태 연결
     func bind(appState: AppState) {
         print("🔗 bind() called with appState")
+        overlayController.window = self
         overlayController.bind(appState: appState)
         
         // bind 후 뷰를 다시 생성 (appState가 연결되었으므로)
@@ -62,25 +63,18 @@ final class OverlayWindow: NSPanel {
         // OverlayController에서 저장된 뷰 참조 사용 (가장 확실한 방법)
         if let selectionView = overlayController.getSelectionView() {
             if makeFirstResponder(selectionView) {
-                print("✅ First responder set to SelectionOverlayView (from controller)")
+                // 성공
             } else {
-                print("❌ Failed to set first responder, retrying...")
+                // 재시도
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if self.makeFirstResponder(selectionView) {
-                        print("✅ First responder set on retry")
-                    } else {
-                        print("❌ Still failed to set first responder")
-                    }
+                    _ = self.makeFirstResponder(selectionView)
                 }
             }
         } else {
-            print("❌ SelectionOverlayView not found in controller, view not created yet?")
             // 뷰가 아직 생성되지 않았을 수 있으니 나중에 다시 시도
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 if let selectionView = self.overlayController.getSelectionView() {
-                    if self.makeFirstResponder(selectionView) {
-                        print("✅ First responder set (delayed)")
-                    }
+                    _ = self.makeFirstResponder(selectionView)
                 }
             }
         }
@@ -97,8 +91,27 @@ final class OverlayWindow: NSPanel {
     
     // ESC는 SelectionOverlayView에서 처리
     override func keyDown(with event: NSEvent) {
-        print("🎹 OverlayWindow keyDown: keyCode=\(event.keyCode)")
         super.keyDown(with: event)
+    }
+    
+    // 오버레이 닫기 (자체 dismiss)
+    func dismiss() {
+        // AppDelegate를 통해 dismiss 시도
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                appDelegate.dismissOverlay()
+            } else {
+                // fallback: 직접 닫기 (SwiftUI 앱에서는 NSApp.delegate가 다를 수 있음)
+                self.resignKey()
+                self.orderOut(nil)
+                // appState도 리셋
+                if let appState = self.overlayController.appState {
+                    appState.overlayVisible = false
+                    appState.reset()
+                }
+            }
+        }
     }
 }
 
@@ -106,6 +119,7 @@ final class OverlayWindow: NSPanel {
 
 private final class OverlayController {
     weak var appState: AppState?
+    weak var window: OverlayWindow?
     private var selectionView: SelectionOverlayView?
 
     func bind(appState: AppState) {
@@ -168,26 +182,8 @@ private final class OverlayController {
                             }
                         },
                         onEscapePressed: { [weak self] in
-                            print("🚨 onEscapePressed called")
-                            print("🔍 self: \(self != nil ? "exists" : "nil")")
-                            print("🔍 appState: exists")
-                            print("📊 Current selectionState: \(appState.selectionState)")
-                            if appState.selectionState == .locked {
-                                // locked 상태일 때는 lock 해제
-                                print("🔓 Unlocking...")
-                                appState.selectionState = .selecting
-                                // 뷰를 직접 업데이트
-                                if let self = self, let view = self.selectionView {
-                                    view.isLocked = false
-                                    print("✅ View isLocked set to false")
-                                } else {
-                                    print("❌ self or selectionView is nil")
-                                }
-                            } else {
-                                // unlocked 상태일 때는 오버레이 닫기
-                                print("🚪 Closing overlay...")
-                                (NSApp.delegate as? AppDelegate)?.dismissOverlay()
-                            }
+                            // ESC: 항상 오버레이 닫기
+                            self?.window?.dismiss()
                         })
                 .ignoresSafeArea()
         )

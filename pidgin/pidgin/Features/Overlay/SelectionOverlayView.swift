@@ -36,26 +36,16 @@ final class SelectionOverlayView: NSView {
     // MARK: - First Responder / Keyboard
 
     /// 키 이벤트를 받기 위해 true
-    override var acceptsFirstResponder: Bool { 
-        print("🔵 acceptsFirstResponder called: true")
-        return true 
-    }
+    override var acceptsFirstResponder: Bool { true }
     
     override func becomeFirstResponder() -> Bool {
-        let result = super.becomeFirstResponder()
-        print("🎯 becomeFirstResponder: \(result)")
-        return result
+        return super.becomeFirstResponder()
     }
 
-    /// ESC로 lock 해제 또는 오버레이 닫기, Enter로 영역 고정
+    /// ESC로 오버레이 닫기, Enter로 영역 고정
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // ESC
-            print("🔑 ESC pressed, isLocked=\(isLocked), onEscapePressed=\(onEscapePressed != nil ? "exists" : "nil")") // 디버깅
-            if let callback = onEscapePressed {
-                callback()
-            } else {
-                print("❌ onEscapePressed is nil!")
-            }
+            onEscapePressed?()
             return
         }
         if event.keyCode == 36 { // Enter (Return)
@@ -96,11 +86,10 @@ final class SelectionOverlayView: NSView {
         guard !isLocked else { return }
         startPoint = nil
         
-        // 영역이 제대로 지정되었으면 완료 처리 (조건을 더 느슨하게)
+        // 영역이 제대로 지정되었으면 완료 처리
         if selectionRect != .zero && selectionRect.width > 5 && selectionRect.height > 5 {
             // 직접 isLocked를 업데이트하고 콜백도 호출
             isLocked = true
-            print("🔒 Locked! isLocked=\(isLocked), selectionRect=\(selectionRect)") // 디버깅
             onSelectionComplete?()
             
             // 강제로 전체 뷰를 다시 그림
@@ -139,11 +128,6 @@ final class SelectionOverlayView: NSView {
         let hint = isLocked
         ? "Locked: Space=시적, Enter=구조, ESC=닫기"
         : "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
-        
-        // 디버깅: draw가 호출될 때마다 isLocked 값 확인
-        if isLocked {
-            print("🎨 Drawing with isLocked=true, hint=\(hint)")
-        }
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
             .foregroundColor: NSColor.white.withAlphaComponent(0.92)
