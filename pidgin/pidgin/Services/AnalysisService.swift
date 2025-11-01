@@ -28,6 +28,12 @@ final class AnalysisService {
         mode: AppState.AnalysisMode,
         appState: AppState
     ) async {
+        // 오버레이가 보이는 상태인지 확인
+        guard appState.overlayVisible else {
+            print("⚠️ Overlay is not visible, skipping analysis")
+            return
+        }
+        
         // 1. 상태를 requesting로 변경
         appState.selectionState = .requesting
         appState.analysisMode = mode
@@ -39,29 +45,49 @@ final class AnalysisService {
                 throw AnalysisError.captureFailed
             }
             
+            // 오버레이가 여전히 보이는지 다시 확인 (캡처 후)
+            guard appState.overlayVisible else {
+                print("⚠️ Overlay closed during capture, aborting analysis")
+                appState.selectionState = .locked
+                return
+            }
+            
             // 3. 프롬프트 생성
             let prompt = PromptBuilder.prompt(for: mode)
             
             // 4. GPT 분석 요청
             let response = try await gptClient.analyzeImage(image, withPrompt: prompt)
             
+            // 오버레이가 여전히 보이는지 다시 확인 (GPT 응답 후)
+            guard appState.overlayVisible else {
+                print("⚠️ Overlay closed during GPT analysis, aborting TTS")
+                appState.selectionState = .locked
+                return
+            }
+            
             // 5. 응답 저장
             appState.analysisResponse = response
             
-            // 6. TTS 재생 시작
+            // 6. TTS 재생 시작 (오버레이가 보이는 경우에만)
             appState.isTTSPlaying = true
             ttsService.speak(text: response) {
                 Task { @MainActor in
-                    appState.isTTSPlaying = false
-                    // TTS 재생 완료 후 locked 상태로 복귀
-                    appState.selectionState = .locked
+                    // 오버레이가 여전히 보이는지 확인 후 상태 업데이트
+                    if appState.overlayVisible {
+                        appState.isTTSPlaying = false
+                        appState.selectionState = .locked
+                    } else {
+                        appState.isTTSPlaying = false
+                    }
                 }
             }
             
         } catch {
             // 에러 처리
             appState.errorMessage = error.localizedDescription
-            appState.selectionState = .locked
+            if appState.overlayVisible {
+                appState.selectionState = .locked
+            }
             appState.isTTSPlaying = false
             
             print("❌ Analysis error: \(error)")

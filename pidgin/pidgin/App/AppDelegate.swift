@@ -110,6 +110,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("📦 overlayWindow exists: \(overlayWindow != nil)")
         print("📦 overlayWindow isVisible: \(overlayWindow?.isVisible ?? false)")
         
+        // TTS 재생 중지
+        TextToSpeechService.shared.stop()
+        
         // 먼저 ESC 모니터 해제 (중복 호출 방지)
         if let escMonitor {
             NSEvent.removeMonitor(escMonitor)
@@ -120,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = overlayWindow else {
             print("⚠️ overlayWindow is nil")
             appState?.overlayVisible = false
+            appState?.isTTSPlaying = false
             appState?.reset()
             return
         }
@@ -127,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard window.isVisible else {
             print("⚠️ Window is not visible, already dismissed")
             appState?.overlayVisible = false
+            appState?.isTTSPlaying = false
             appState?.reset()
             return
         }
@@ -137,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.isReleasedWhenClosed = false // 창을 완전히 닫지 않고 숨김
         
         appState?.overlayVisible = false
+        appState?.isTTSPlaying = false
         appState?.reset()
         
         // 윈도우가 완전히 사라졌는지 확인

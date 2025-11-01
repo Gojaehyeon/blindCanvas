@@ -19,7 +19,10 @@ final class SelectionOverlayView: NSView {
         didSet { needsDisplay = true }
     }
     var isRequesting: Bool = false {
-        didSet { needsDisplay = true }
+        didSet {
+            needsDisplay = true
+            updateLoadingIndicator()
+        }
     }
 
     // 내부 상태
@@ -27,6 +30,7 @@ final class SelectionOverlayView: NSView {
     private var selectionRect: CGRect = .zero {
         didSet { rectChanged?(selectionRect) }
     }
+    private var loadingIndicator: NSProgressIndicator?
 
     // MARK: - Init
 
@@ -34,9 +38,57 @@ final class SelectionOverlayView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        setupLoadingIndicator()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
+    private func setupLoadingIndicator() {
+        let indicator = NSProgressIndicator()
+        indicator.style = .spinning
+        indicator.controlSize = .regular
+        indicator.isIndeterminate = true
+        indicator.isDisplayedWhenStopped = false
+        indicator.isHidden = true
+        addSubview(indicator)
+        
+        loadingIndicator = indicator
+    }
+    
+    private func updateLoadingIndicator() {
+        guard let indicator = loadingIndicator else { return }
+        
+        // 중앙에 위치하도록 frame 설정
+        let size: CGFloat = 32
+        indicator.frame = NSRect(
+            x: (bounds.width - size) / 2,
+            y: (bounds.height - size) / 2,
+            width: size,
+            height: size
+        )
+        
+        if isRequesting {
+            indicator.startAnimation(nil)
+            indicator.isHidden = false
+        } else {
+            indicator.stopAnimation(nil)
+            indicator.isHidden = true
+        }
+    }
+    
+    override func layout() {
+        super.layout()
+        // 레이아웃 변경 시 로딩 인디케이터 위치 업데이트
+        if let indicator = loadingIndicator, !indicator.isHidden {
+            let size: CGFloat = 32
+            indicator.frame = NSRect(
+                x: (bounds.width - size) / 2,
+                y: (bounds.height - size) / 2,
+                width: size,
+                height: size
+            )
+        }
+    }
 
     // MARK: - First Responder / Keyboard
 
@@ -144,21 +196,37 @@ final class SelectionOverlayView: NSView {
             border.stroke()
         }
 
-        // 안내 텍스트
-        let hint: String
-        if isRequesting {
-            hint = "분석 중... 잠시만 기다려주세요."
-        } else if isLocked {
-            hint = "Locked: Space=시적, Enter=구조, ESC=닫기"
+        // 안내 텍스트 (로딩 중일 때는 텍스트를 약간 아래로 이동)
+        if !isRequesting {
+            let hint: String
+            if isLocked {
+                hint = "Locked: Space=시적, Enter=구조, ESC=닫기"
+            } else {
+                hint = "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
+            }
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.92)
+            ]
+            let size = hint.size(withAttributes: attrs)
+            let rect = NSRect(x: 16, y: 16, width: size.width, height: size.height)
+            hint.draw(in: rect, withAttributes: attrs)
         } else {
-            hint = "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
+            // 로딩 중일 때는 로딩 텍스트를 인디케이터 아래에 표시
+            let hint = "분석 중..."
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.92)
+            ]
+            let size = hint.size(withAttributes: attrs)
+            // 중앙 하단에 텍스트 배치 (로딩 인디케이터 아래)
+            let rect = NSRect(
+                x: (bounds.width - size.width) / 2,
+                y: bounds.height / 2 - 40, // 로딩 인디케이터 아래
+                width: size.width,
+                height: size.height
+            )
+            hint.draw(in: rect, withAttributes: attrs)
         }
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.92)
-        ]
-        let size = hint.size(withAttributes: attrs)
-        let rect = NSRect(x: 16, y: 16, width: size.width, height: size.height)
-        hint.draw(in: rect, withAttributes: attrs)
     }
 }

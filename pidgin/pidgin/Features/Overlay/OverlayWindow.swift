@@ -96,6 +96,9 @@ final class OverlayWindow: NSPanel {
     
     // 오버레이 닫기 (자체 dismiss)
     func dismiss() {
+        // TTS 재생 중지
+        TextToSpeechService.shared.stop()
+        
         // AppDelegate를 통해 dismiss 시도
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -108,6 +111,7 @@ final class OverlayWindow: NSPanel {
                 // appState도 리셋
                 if let appState = self.overlayController.appState {
                     appState.overlayVisible = false
+                    appState.isTTSPlaying = false
                     appState.reset()
                 }
             }
