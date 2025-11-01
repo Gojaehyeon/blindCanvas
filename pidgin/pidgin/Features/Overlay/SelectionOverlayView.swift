@@ -13,7 +13,12 @@ final class SelectionOverlayView: NSView {
     var onEnterPressed: (() -> Void)?
     var onSelectionComplete: (() -> Void)?
     var onEscapePressed: (() -> Void)?
+    var onSpacePressedInLocked: (() -> Void)?  // Locked 상태에서 Space 키
+    var onEnterPressedInLocked: (() -> Void)?  // Locked 상태에서 Enter 키
     var isLocked: Bool = false {
+        didSet { needsDisplay = true }
+    }
+    var isRequesting: Bool = false {
         didSet { needsDisplay = true }
     }
 
@@ -42,17 +47,32 @@ final class SelectionOverlayView: NSView {
         return super.becomeFirstResponder()
     }
 
-    /// ESC로 오버레이 닫기, Enter로 영역 고정
+    /// 키 입력 처리
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // ESC
             onEscapePressed?()
             return
         }
-        if event.keyCode == 36 { // Enter (Return)
-            guard !isLocked, selectionRect != .zero else { return }
-            onEnterPressed?()
-            return
+        
+        if isLocked {
+            // Locked 상태: Space(시적), Enter(구조적) 분석 요청
+            if event.keyCode == 49 { // Space
+                onSpacePressedInLocked?()
+                return
+            }
+            if event.keyCode == 36 { // Enter (Return)
+                onEnterPressedInLocked?()
+                return
+            }
+        } else {
+            // Selecting 상태: Enter로 영역 고정
+            if event.keyCode == 36 { // Enter (Return)
+                guard selectionRect != .zero else { return }
+                onEnterPressed?()
+                return
+            }
         }
+        
         super.keyDown(with: event)
     }
 
@@ -125,9 +145,14 @@ final class SelectionOverlayView: NSView {
         }
 
         // 안내 텍스트
-        let hint = isLocked
-        ? "Locked: Space=시적, Enter=구조, ESC=닫기"
-        : "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
+        let hint: String
+        if isRequesting {
+            hint = "분석 중... 잠시만 기다려주세요."
+        } else if isLocked {
+            hint = "Locked: Space=시적, Enter=구조, ESC=닫기"
+        } else {
+            hint = "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
+        }
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
             .foregroundColor: NSColor.white.withAlphaComponent(0.92)

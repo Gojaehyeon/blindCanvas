@@ -98,19 +98,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.overlayWindow?.makeFirstResponderToOverlay()
         }
 
-        // ⬇️ Enter 키를 가로채기 위한 로컬 모니터 등록 (오버레이 보이는 동안만)
-        // ESC는 SelectionOverlayView에서 직접 처리
-        escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.overlayWindow?.isVisible == true else { return event }
-            if event.keyCode == 36 { // Enter (Return)
-                guard let appState = self.appState else { return event }
-                guard appState.selectionState == .selecting, appState.selectedRect != .zero else { return event }
-                appState.selectionState = .locked
-                return nil // 이벤트 소비
-            }
-            // ESC 등 다른 키는 뷰로 전달
-            return event
-        }
+        // 키 입력은 SelectionOverlayView에서 직접 처리
+        // escMonitor는 사용하지 않음 (ESC도 SelectionOverlayView에서 처리)
 
         appState.selectionState = .selecting
         appState.overlayVisible = true

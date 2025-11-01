@@ -132,6 +132,7 @@ private final class OverlayController {
             .sink { [weak self] _ in
                 guard let self = self, let view = self.selectionView, let appState = self.appState else { return }
                 view.isLocked = appState.isLocked
+                view.isRequesting = appState.isRequesting
                 view.needsDisplay = true
             }
             .store(in: &cancellables)
@@ -184,6 +185,34 @@ private final class OverlayController {
                         onEscapePressed: { [weak self] in
                             // ESC: 항상 오버레이 닫기
                             self?.window?.dismiss()
+                        },
+                        onSpacePressedInLocked: { [weak self] in
+                            // Space: 시적 해석 요청
+                            guard let self = self else { return }
+                            guard appState.selectionState == .locked,
+                                  appState.selectedRect != .zero else { return }
+                            
+                            Task { @MainActor in
+                                await AnalysisService.shared.analyzeRegion(
+                                    appState.selectedRect,
+                                    mode: .poetic,
+                                    appState: appState
+                                )
+                            }
+                        },
+                        onEnterPressedInLocked: { [weak self] in
+                            // Enter: 구조적 해석 요청
+                            guard let self = self else { return }
+                            guard appState.selectionState == .locked,
+                                  appState.selectedRect != .zero else { return }
+                            
+                            Task { @MainActor in
+                                await AnalysisService.shared.analyzeRegion(
+                                    appState.selectedRect,
+                                    mode: .structural,
+                                    appState: appState
+                                )
+                            }
                         })
                 .ignoresSafeArea()
         )
@@ -196,6 +225,8 @@ private struct OverlayView: NSViewRepresentable {
     let onEnterPressed: () -> Void
     let onSelectionComplete: () -> Void
     let onEscapePressed: () -> Void
+    let onSpacePressedInLocked: () -> Void
+    let onEnterPressedInLocked: () -> Void
 
     func makeNSView(context: Context) -> SelectionOverlayView {
         let v = SelectionOverlayView()
@@ -203,7 +234,10 @@ private struct OverlayView: NSViewRepresentable {
         v.onEnterPressed = onEnterPressed
         v.onSelectionComplete = onSelectionComplete
         v.onEscapePressed = onEscapePressed
+        v.onSpacePressedInLocked = onSpacePressedInLocked
+        v.onEnterPressedInLocked = onEnterPressedInLocked
         v.isLocked = controller.appState?.isLocked ?? false
+        v.isRequesting = controller.appState?.isRequesting ?? false
         controller.setSelectionView(v)
         print("📦 SelectionOverlayView created and stored")
         // 오버레이 표시 즉시 ESC가 먹히도록 포커스
@@ -227,7 +261,10 @@ private struct OverlayView: NSViewRepresentable {
         nsView.onEnterPressed = onEnterPressed
         nsView.onSelectionComplete = onSelectionComplete
         nsView.onEscapePressed = onEscapePressed
+        nsView.onSpacePressedInLocked = onSpacePressedInLocked
+        nsView.onEnterPressedInLocked = onEnterPressedInLocked
         nsView.isLocked = controller.appState?.isLocked ?? false
+        nsView.isRequesting = controller.appState?.isRequesting ?? false
         nsView.needsDisplay = true
     }
 }

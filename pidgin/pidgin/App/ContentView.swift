@@ -49,6 +49,7 @@ struct ContentView: View {
         case .idle: return "Idle"
         case .selecting: return "Selecting"
         case .locked: return "Locked"
+        case .requesting: return "Requesting..."
         }
     }
 
