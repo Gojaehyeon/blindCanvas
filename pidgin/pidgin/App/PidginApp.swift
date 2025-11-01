@@ -17,7 +17,8 @@ struct PidginApp: App {
             ContentView()
                 .environmentObject(appState)
                 .onAppear {
-                    (NSApp.delegate as? AppDelegate)?.setAppState(appState)
+                    // ContentView가 나타날 때 appState 연결
+                    appDelegate.setAppState(appState)
                 }
         }
         .windowStyle(.automatic)

@@ -22,6 +22,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.toggleOverlay()
         }
         NSApp.activate(ignoringOtherApps: true)
+        
+        // PidginApp의 appState를 가져와서 연결
+        // PidginApp이 이미 초기화되어 있어야 함
+        DispatchQueue.main.async { [weak self] in
+            if let pidginApp = NSApp.delegate as? AppDelegate {
+                // ContentView의 onAppear에서 설정될 때까지 대기
+                // 여기서는 일단 nil 체크만
+            }
+        }
     }
 
     func setAppState(_ state: AppState) {
@@ -40,28 +49,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func presentOverlay() {
-        if overlayWindow == nil {
-            overlayWindow = OverlayWindow()
-            if let appState { overlayWindow?.bind(appState: appState) }
+        print("🎬 presentOverlay() called")
+        print("📦 overlayWindow: \(overlayWindow != nil ? "exists" : "nil")")
+        print("📦 appState: \(appState != nil ? "exists" : "nil")")
+        
+        // appState가 nil이면 ContentView에서 설정될 때까지 대기
+        if appState == nil {
+            print("⚠️ appState is nil, trying to get from ContentView...")
+            // 잠시 후 다시 시도 (ContentView.onAppear가 실행되었을 수 있음)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let self = self, let appState = self.appState {
+                    print("✅ appState found after delay, creating overlay")
+                    self.presentOverlayInternal()
+                } else {
+                    print("❌ appState still nil, cannot create overlay")
+                }
+            }
+            return
         }
+        
+        presentOverlayInternal()
+    }
+    
+    private func presentOverlayInternal() {
+        guard let appState = appState else {
+            print("❌ presentOverlayInternal: appState is still nil")
+            return
+        }
+        
+        if overlayWindow == nil {
+            print("🆕 Creating new OverlayWindow")
+            overlayWindow = OverlayWindow()
+        }
+        
+        print("🔗 Calling bind(appState)")
+        overlayWindow?.bind(appState: appState)
 
+        
         overlayWindow?.setLocked(false)
         overlayWindow?.makeKeyAndOrderFront(nil)
         overlayWindow?.centerOnMainScreenIfNeeded()
-        overlayWindow?.makeFirstResponderToOverlay()
+        
+        print("👁️ Window should be visible now")
+        
+        // 뷰가 생성된 후 first responder 설정 (약간의 지연 필요)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            print("⏰ Delayed first responder setup")
+            self.overlayWindow?.makeFirstResponderToOverlay()
+        }
 
-        // ⬇️ ESC 로컬 모니터 등록 (오버레이 보이는 동안만)
+        // ⬇️ Enter 키를 가로채기 위한 로컬 모니터 등록 (오버레이 보이는 동안만)
+        // ESC는 SelectionOverlayView에서 직접 처리
         escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.overlayWindow?.isVisible == true else { return event }
-            if event.keyCode == 53 { // ESC
-                self.dismissOverlay()
+            if event.keyCode == 36 { // Enter (Return)
+                guard let appState = self.appState else { return event }
+                guard appState.selectionState == .selecting, appState.selectedRect != .zero else { return event }
+                appState.selectionState = .locked
                 return nil // 이벤트 소비
             }
+            // ESC 등 다른 키는 뷰로 전달
             return event
         }
 
-        appState?.selectionState = .selecting
-        appState?.overlayVisible = true
+        appState.selectionState = .selecting
+        appState.overlayVisible = true
     }
 
     func dismissOverlay() {
