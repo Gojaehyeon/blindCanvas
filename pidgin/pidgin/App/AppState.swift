@@ -32,14 +32,28 @@ final class AppState: ObservableObject {
     @Published var isTTSPlaying: Bool = false
     @Published var errorMessage: String? = nil
     
+    // 마지막으로 Lock된 영역 저장
+    @Published var lastLockedRect: CGRect = .zero
+    
     var isLocked: Bool { selectionState == .locked }
     var isRequesting: Bool { selectionState == .requesting }
     
     func reset() {
+        print("🔄 AppState.reset() called, preserving lastLockedRect: \(lastLockedRect)")
+        let preservedRect = lastLockedRect
         selectionState = .idle
         selectedRect = .zero
         analysisMode = nil
         analysisResponse = nil
         errorMessage = nil
+        // lastLockedRect는 유지 (다음에 재사용)
+        lastLockedRect = preservedRect
+        print("✅ AppState.reset() completed, lastLockedRect preserved: \(lastLockedRect)")
+    }
+    
+    func resetToNewSelection() {
+        // 새로 그리기 모드: 모든 것을 리셋
+        reset()
+        lastLockedRect = .zero
     }
 }

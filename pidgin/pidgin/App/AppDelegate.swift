@@ -17,10 +17,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var escMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // ⌘⇧1: 오버레이 토글
         KeyboardShortcuts.setShortcut(.init(.one, modifiers: [.command, .shift]), for: .toggleOverlay)
         KeyboardShortcuts.onKeyUp(for: .toggleOverlay) { [weak self] in
             self?.toggleOverlay()
         }
+        
+        // ⌘⇧2: 최근 저장된 영역으로 바로 열기
+        KeyboardShortcuts.setShortcut(.init(.two, modifiers: [.command, .shift]), for: .showLastRegion)
+        KeyboardShortcuts.onKeyUp(for: .showLastRegion) { [weak self] in
+            self?.showLastRegion()
+        }
+        
         NSApp.activate(ignoringOtherApps: true)
         
         // PidginApp의 appState를 가져와서 연결
@@ -46,6 +54,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             presentOverlay()
         }
+    }
+    
+    /// 최근 저장된 영역으로 바로 열기
+    func showLastRegion() {
+        guard let appState = appState else {
+            print("❌ showLastRegion: appState is nil")
+            return
+        }
+        
+        print("🔍 showLastRegion called")
+        print("📊 lastLockedRect: \(appState.lastLockedRect)")
+        print("📊 selectedRect: \(appState.selectedRect)")
+        
+        // 저장된 영역이 없으면 일반 토글과 동일하게 동작
+        if appState.lastLockedRect == .zero {
+            print("⚠️ No saved region, falling back to toggle")
+            toggleOverlay()
+            return
+        }
+        
+        // 이미 열려있으면 닫기
+        if overlayWindow?.isVisible == true {
+            print("📌 Overlay already visible, dismissing")
+            dismissOverlay()
+            return
+        }
+        
+        // 저장된 영역이 있으면 바로 Locked 상태로 열기
+        print("✅ Using saved region, opening with lastLockedRect")
+        presentOverlayWithLastRegion()
+    }
+    
+    private func presentOverlayWithLastRegion() {
+        guard let appState = appState else {
+            print("❌ presentOverlayWithLastRegion: appState is nil")
+            return
+        }
+        
+        if overlayWindow == nil {
+            print("🆕 Creating new OverlayWindow")
+            overlayWindow = OverlayWindow()
+        }
+        
+        print("🔗 Calling bind(appState)")
+        
+        // 저장된 영역으로 바로 설정
+        appState.selectedRect = appState.lastLockedRect
+        appState.selectionState = .locked
+        
+        overlayWindow?.bind(appState: appState)
+        
+        overlayWindow?.setLocked(true)
+        overlayWindow?.makeKeyAndOrderFront(nil)
+        overlayWindow?.centerOnMainScreenIfNeeded()
+        
+        print("👁️ Window should be visible now with last region")
+        
+        // 뷰가 생성된 후 first responder 및 저장된 영역 설정
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            print("⏰ Delayed first responder setup")
+            self.overlayWindow?.makeFirstResponderToOverlay()
+            
+            // 저장된 영역을 뷰에 강제로 설정
+            if let view = self.overlayWindow?.getSelectionView() {
+                print("🔧 Force setting selectionRect to view: \(appState.lastLockedRect)")
+                view.selectionRect = appState.lastLockedRect
+                view.isLocked = true
+                view.needsDisplay = true
+            }
+        }
+
+        appState.overlayVisible = true
     }
 
     func presentOverlay() {
@@ -83,10 +163,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         print("🔗 Calling bind(appState)")
-        overlayWindow?.bind(appState: appState)
-
         
+        // ⌘⇧1은 항상 새로 그리기 모드로 시작 (lastLockedRect 사용 안 함)
+        appState.selectionState = .selecting
+        appState.selectedRect = .zero
+        
+        overlayWindow?.bind(appState: appState)
         overlayWindow?.setLocked(false)
+        
         overlayWindow?.makeKeyAndOrderFront(nil)
         overlayWindow?.centerOnMainScreenIfNeeded()
         
@@ -101,7 +185,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 키 입력은 SelectionOverlayView에서 직접 처리
         // escMonitor는 사용하지 않음 (ESC도 SelectionOverlayView에서 처리)
 
-        appState.selectionState = .selecting
         appState.overlayVisible = true
     }
 
@@ -124,7 +207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("⚠️ overlayWindow is nil")
             appState?.overlayVisible = false
             appState?.isTTSPlaying = false
+            let savedRect = appState?.lastLockedRect ?? .zero
             appState?.reset()
+            appState?.lastLockedRect = savedRect
             return
         }
         
@@ -132,7 +217,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("⚠️ Window is not visible, already dismissed")
             appState?.overlayVisible = false
             appState?.isTTSPlaying = false
+            let savedRect = appState?.lastLockedRect ?? .zero
             appState?.reset()
+            appState?.lastLockedRect = savedRect
             return
         }
         
@@ -143,7 +230,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         appState?.overlayVisible = false
         appState?.isTTSPlaying = false
+        
+        // reset()은 lastLockedRect를 유지하지만, 상태만 리셋
+        let savedRect = appState?.lastLockedRect ?? .zero
         appState?.reset()
+        appState?.lastLockedRect = savedRect  // lastLockedRect 복원
+        print("💾 Preserved lastLockedRect after reset: \(appState?.lastLockedRect ?? .zero)")
         
         // 윈도우가 완전히 사라졌는지 확인
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

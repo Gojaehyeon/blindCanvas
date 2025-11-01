@@ -30,7 +30,7 @@ final class SelectionOverlayView: NSView {
 
     // 내부 상태
     private var startPoint: CGPoint?
-    private var selectionRect: CGRect = .zero {
+    var selectionRect: CGRect = .zero {
         didSet { rectChanged?(selectionRect) }
     }
     private var loadingIndicator: NSProgressIndicator?
