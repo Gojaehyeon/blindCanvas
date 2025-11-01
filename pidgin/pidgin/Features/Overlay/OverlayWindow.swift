@@ -20,16 +20,19 @@ final class OverlayWindow: NSPanel {
             defer: false
         )
 
-        level = .statusBar
+        level = .statusBar                    // 거의 최상위
         isOpaque = false
         hasShadow = false
         backgroundColor = .clear
         ignoresMouseEvents = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        contentView = NSHostingView(rootView: overlayController.overlayView())
+        // SwiftUI 호스팅
+        let root = overlayController.overlayView()
+        contentView = NSHostingView(rootView: root)
     }
 
+    // SwiftUI(NSViewRepresentable)와 상태 연결
     func bind(appState: AppState) {
         overlayController.bind(appState: appState)
     }
@@ -39,35 +42,40 @@ final class OverlayWindow: NSPanel {
         ignoresMouseEvents = locked
     }
 
-    // 키 포커스가 가도록 도우미
+    // 키 입력이 바로 들어오도록 포커스 이동
     func makeFirstResponderToOverlay() {
-        if let view = (contentView as? NSHostingView<AnyView>)?.subviews.first
-            ?? contentView?.subviews.first {
-            self.makeFirstResponder(view)
+        if let view = contentView?.subviews.first {
+            makeFirstResponder(view)
         } else {
-            self.makeFirstResponder(self.contentView)
+            makeFirstResponder(contentView)
         }
     }
 
-    // ESC가 눌리면 닫기
+    // 멀티 모니터 환경에서 메인 스크린 중앙에 보정
+    func centerOnMainScreenIfNeeded() {
+        guard let screen = NSScreen.main else { return }
+        setFrame(screen.frame, display: true)
+    }
+
+    // ESC → 닫기
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // ESC
-            if let delegate = NSApp.delegate as? AppDelegate {
-                delegate.dismissOverlay()
-                return
-            }
+            (NSApp.delegate as? AppDelegate)?.dismissOverlay()
+            return
         }
         super.keyDown(with: event)
     }
 }
 
-// MARK: - Coordinator + View (기존 코드 유지)
+// MARK: - Coordinator + View
+
 private final class OverlayController {
     private weak var appState: AppState?
     private var locked: Bool = false
 
     func bind(appState: AppState) {
         self.appState = appState
+        if appState.selectionState == .idle { appState.selectionState = .selecting }
     }
 
     func setLocked(_ locked: Bool) {
@@ -78,7 +86,7 @@ private final class OverlayController {
     func overlayView() -> some View {
         OverlayView(locked: { self.locked },
                     onRectChange: { [weak self] rect in self?.appState?.selectedRect = rect })
-            .ignoresSafeArea()
+        .ignoresSafeArea()
     }
 }
 
@@ -90,7 +98,7 @@ private struct OverlayView: NSViewRepresentable {
         let v = SelectionOverlayView()
         v.rectChanged = onRectChange
         v.isLocked = locked()
-        // 뷰가 키를 받을 수 있도록
+        // 오버레이 표시 즉시 ESC가 먹히도록 포커스
         DispatchQueue.main.async { v.window?.makeFirstResponder(v) }
         return v
     }

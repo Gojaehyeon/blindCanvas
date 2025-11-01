@@ -10,6 +10,7 @@ import Cocoa
 final class SelectionOverlayView: NSView {
     // 외부 바인딩
     var rectChanged: ((CGRect) -> Void)?
+    var onEnterPressed: (() -> Void)?
     var isLocked: Bool = false {
         didSet { needsDisplay = true }
     }
@@ -28,19 +29,23 @@ final class SelectionOverlayView: NSView {
         layer?.backgroundColor = NSColor.clear.cgColor
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     // MARK: - First Responder / Keyboard
 
-    /// 키 이벤트를 받기 위해 반드시 true
+    /// 키 이벤트를 받기 위해 true
     override var acceptsFirstResponder: Bool { true }
 
-    /// ESC로 오버레이 닫기
+    /// ESC로 오버레이 닫기, Enter로 영역 고정
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // ESC
+            // print("ESC pressed") // 디버깅용
             (NSApp.delegate as? AppDelegate)?.dismissOverlay()
+            return
+        }
+        if event.keyCode == 36 { // Enter (Return)
+            guard !isLocked, selectionRect != .zero else { return }
+            onEnterPressed?()
             return
         }
         super.keyDown(with: event)
@@ -56,7 +61,7 @@ final class SelectionOverlayView: NSView {
         selectionRect = .zero
         needsDisplay = true
 
-        // 키 포커스를 이 뷰로 강제 (ESC가 바로 동작하도록)
+        // ESC가 바로 동작하도록 포커스 이 뷰로 강제
         window?.makeFirstResponder(self)
     }
 
@@ -83,15 +88,14 @@ final class SelectionOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // 배경을 어둡게, 선택영역은 투명하게
+        // 배경 어둡게
         NSColor.black.withAlphaComponent(isLocked ? 0.15 : 0.30).setFill()
         dirtyRect.fill()
 
         if selectionRect != .zero {
-            // 선택 영역을 클리어(보이게)
+            // 선택 영역 투명하게
             NSGraphicsContext.saveGraphicsState()
-            let clip = NSBezierPath(rect: selectionRect)
-            clip.addClip()
+            NSBezierPath(rect: selectionRect).addClip()
             NSColor.clear.setFill()
             selectionRect.fill(using: .clear)
             NSGraphicsContext.restoreGraphicsState()
