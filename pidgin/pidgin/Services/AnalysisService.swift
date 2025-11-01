@@ -68,16 +68,16 @@ final class AnalysisService {
             // 5. 응답 저장
             appState.analysisResponse = response
             
-            // 6. TTS 재생 시작 (오버레이가 보이는 경우에만)
+            // 6. requesting 상태를 먼저 해제하고 TTS 재생 시작
+            appState.selectionState = .locked
             appState.isTTSPlaying = true
+            
             ttsService.speak(text: response) {
                 Task { @MainActor in
                     // 오버레이가 여전히 보이는지 확인 후 상태 업데이트
+                    appState.isTTSPlaying = false
                     if appState.overlayVisible {
-                        appState.isTTSPlaying = false
                         appState.selectionState = .locked
-                    } else {
-                        appState.isTTSPlaying = false
                     }
                 }
             }

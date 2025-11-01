@@ -140,6 +140,16 @@ private final class OverlayController {
                 view.needsDisplay = true
             }
             .store(in: &cancellables)
+        
+        // TTS 재생 상태 변경 감지
+        appState.$isTTSPlaying
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self, let view = self.selectionView, let appState = self.appState else { return }
+                view.isTTSPlaying = appState.isTTSPlaying
+                view.needsDisplay = true
+            }
+            .store(in: &cancellables)
     }
     
     private var cancellables = Set<AnyCancellable>()
@@ -242,6 +252,7 @@ private struct OverlayView: NSViewRepresentable {
         v.onEnterPressedInLocked = onEnterPressedInLocked
         v.isLocked = controller.appState?.isLocked ?? false
         v.isRequesting = controller.appState?.isRequesting ?? false
+        v.isTTSPlaying = controller.appState?.isTTSPlaying ?? false
         controller.setSelectionView(v)
         print("📦 SelectionOverlayView created and stored")
         // 오버레이 표시 즉시 ESC가 먹히도록 포커스
@@ -269,6 +280,7 @@ private struct OverlayView: NSViewRepresentable {
         nsView.onEnterPressedInLocked = onEnterPressedInLocked
         nsView.isLocked = controller.appState?.isLocked ?? false
         nsView.isRequesting = controller.appState?.isRequesting ?? false
+        nsView.isTTSPlaying = controller.appState?.isTTSPlaying ?? false
         nsView.needsDisplay = true
     }
 }

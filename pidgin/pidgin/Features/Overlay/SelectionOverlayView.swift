@@ -24,6 +24,9 @@ final class SelectionOverlayView: NSView {
             updateLoadingIndicator()
         }
     }
+    var isTTSPlaying: Bool = false {
+        didSet { needsDisplay = true }
+    }
 
     // 내부 상태
     private var startPoint: CGPoint?
@@ -196,23 +199,9 @@ final class SelectionOverlayView: NSView {
             border.stroke()
         }
 
-        // 안내 텍스트 (로딩 중일 때는 텍스트를 약간 아래로 이동)
-        if !isRequesting {
-            let hint: String
-            if isLocked {
-                hint = "Locked: Space=시적, Enter=구조, ESC=닫기"
-            } else {
-                hint = "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
-            }
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
-                .foregroundColor: NSColor.white.withAlphaComponent(0.92)
-            ]
-            let size = hint.size(withAttributes: attrs)
-            let rect = NSRect(x: 16, y: 16, width: size.width, height: size.height)
-            hint.draw(in: rect, withAttributes: attrs)
-        } else {
-            // 로딩 중일 때는 로딩 텍스트를 인디케이터 아래에 표시
+        // 안내 텍스트
+        if isRequesting {
+            // 분석 중일 때: 로딩 인디케이터와 함께 표시
             let hint = "분석 중..."
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
@@ -226,6 +215,31 @@ final class SelectionOverlayView: NSView {
                 width: size.width,
                 height: size.height
             )
+            hint.draw(in: rect, withAttributes: attrs)
+        } else if isTTSPlaying {
+            // TTS 재생 중일 때: 로딩 인디케이터 없이 텍스트만 표시
+            let hint = "설명중..."
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.92)
+            ]
+            let size = hint.size(withAttributes: attrs)
+            let rect = NSRect(x: 16, y: 16, width: size.width, height: size.height)
+            hint.draw(in: rect, withAttributes: attrs)
+        } else {
+            // 일반 상태
+            let hint: String
+            if isLocked {
+                hint = "Locked: Space=시적, Enter=구조, ESC=닫기"
+            } else {
+                hint = "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
+            }
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.92)
+            ]
+            let size = hint.size(withAttributes: attrs)
+            let rect = NSRect(x: 16, y: 16, width: size.width, height: size.height)
             hint.draw(in: rect, withAttributes: attrs)
         }
     }
