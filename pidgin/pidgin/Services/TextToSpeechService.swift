@@ -27,10 +27,8 @@ final class TextToSpeechService: NSObject {
     
     /// 설정 업데이트
     func updateSettings(rate: Float, voiceGender: AppState.VoiceGender) {
-        print("🔧 TextToSpeechService.updateSettings called: rate=\(rate), gender=\(voiceGender)")
         self.rate = rate
         self.voiceGender = voiceGender
-        print("✅ Settings updated: rate=\(self.rate), gender=\(self.voiceGender)")
     }
     
     /// 텍스트를 음성으로 재생
@@ -57,8 +55,6 @@ final class TextToSpeechService: NSObject {
         utterance.rate = rate
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
-        
-        print("🎤 TTS speaking with voice: \(selectedVoice?.name ?? "nil"), rate: \(rate)")
         
         synthesizer.speak(utterance)
     }

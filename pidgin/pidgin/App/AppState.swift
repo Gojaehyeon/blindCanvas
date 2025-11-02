@@ -49,8 +49,6 @@ final class AppState: ObservableObject {
             let allVoices = AVSpeechSynthesisVoice.speechVoices()
             let koreanVoices = allVoices.filter { $0.language == "ko-KR" }
             
-            print("🔊 Available Korean voices: \(koreanVoices.map { "\($0.name) (gender: \($0.gender.rawValue))" })")
-            
             if self == .female {
                 // 여성 음성: gender 속성 우선, 없으면 이름으로 추정
                 let femaleVoice = koreanVoices.first { voice in
@@ -61,7 +59,6 @@ final class AppState: ObservableObject {
                     voice.name.localizedCaseInsensitiveContains("Yeri")
                 }
                 if let voice = femaleVoice {
-                    print("✅ Selected female voice: \(voice.name)")
                     return voice
                 }
             } else {
@@ -76,14 +73,12 @@ final class AppState: ObservableObject {
                     voice.name.localizedCaseInsensitiveContains("Flo")
                 }
                 if let voice = maleVoice {
-                    print("✅ Selected male voice: \(voice.name)")
                     return voice
                 }
             }
             
             // 기본 한국어 음성 (성별 구분 없이 첫 번째)
             let defaultVoice = koreanVoices.first ?? AVSpeechSynthesisVoice(language: "ko-KR")
-            print("⚠️ Using default Korean voice: \(defaultVoice?.name ?? "nil")")
             return defaultVoice
         }
     }
@@ -92,7 +87,6 @@ final class AppState: ObservableObject {
     var isRequesting: Bool { selectionState == .requesting }
     
     func reset() {
-        print("🔄 AppState.reset() called, preserving lastLockedRect: \(lastLockedRect)")
         let preservedRect = lastLockedRect
         selectionState = .idle
         selectedRect = .zero
@@ -101,7 +95,6 @@ final class AppState: ObservableObject {
         errorMessage = nil
         // lastLockedRect는 유지 (다음에 재사용)
         lastLockedRect = preservedRect
-        print("✅ AppState.reset() completed, lastLockedRect preserved: \(lastLockedRect)")
     }
     
     func resetToNewSelection() {

@@ -30,12 +30,10 @@ final class AnalysisService {
     ) async {
         // 오버레이가 보이는 상태인지 확인
         guard appState.overlayVisible else {
-            print("⚠️ Overlay is not visible, skipping analysis")
             return
         }
         
         // TTS 설정 업데이트 (분석 시작 전에 미리 설정)
-        print("🔧 Updating TTS settings: rate=\(appState.ttsRate), gender=\(appState.ttsVoiceGender)")
         ttsService.updateSettings(rate: appState.ttsRate, voiceGender: appState.ttsVoiceGender)
         
         // 1. 상태를 requesting로 변경
@@ -51,7 +49,6 @@ final class AnalysisService {
             
             // 오버레이가 여전히 보이는지 다시 확인 (캡처 후)
             guard appState.overlayVisible else {
-                print("⚠️ Overlay closed during capture, aborting analysis")
                 appState.selectionState = .locked
                 return
             }
@@ -64,7 +61,6 @@ final class AnalysisService {
             
             // 오버레이가 여전히 보이는지 다시 확인 (GPT 응답 후)
             guard appState.overlayVisible else {
-                print("⚠️ Overlay closed during GPT analysis, aborting TTS")
                 appState.selectionState = .locked
                 return
             }
@@ -94,8 +90,6 @@ final class AnalysisService {
                 appState.selectionState = .locked
             }
             appState.isTTSPlaying = false
-            
-            print("❌ Analysis error: \(error)")
         }
     }
 }

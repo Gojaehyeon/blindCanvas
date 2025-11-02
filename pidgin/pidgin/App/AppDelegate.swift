@@ -59,45 +59,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 최근 저장된 영역으로 바로 열기
     func showLastRegion() {
         guard let appState = appState else {
-            print("❌ showLastRegion: appState is nil")
             return
         }
         
-        print("🔍 showLastRegion called")
-        print("📊 lastLockedRect: \(appState.lastLockedRect)")
-        print("📊 selectedRect: \(appState.selectedRect)")
-        
         // 저장된 영역이 없으면 일반 토글과 동일하게 동작
         if appState.lastLockedRect == .zero {
-            print("⚠️ No saved region, falling back to toggle")
             toggleOverlay()
             return
         }
         
         // 이미 열려있으면 닫기
         if overlayWindow?.isVisible == true {
-            print("📌 Overlay already visible, dismissing")
             dismissOverlay()
             return
         }
         
         // 저장된 영역이 있으면 바로 Locked 상태로 열기
-        print("✅ Using saved region, opening with lastLockedRect")
         presentOverlayWithLastRegion()
     }
     
     private func presentOverlayWithLastRegion() {
         guard let appState = appState else {
-            print("❌ presentOverlayWithLastRegion: appState is nil")
             return
         }
         
         if overlayWindow == nil {
-            print("🆕 Creating new OverlayWindow")
             overlayWindow = OverlayWindow()
         }
-        
-        print("🔗 Calling bind(appState)")
         
         // 저장된 영역으로 바로 설정
         appState.selectedRect = appState.lastLockedRect
@@ -109,16 +97,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayWindow?.makeKeyAndOrderFront(nil)
         overlayWindow?.centerOnMainScreenIfNeeded()
         
-        print("👁️ Window should be visible now with last region")
-        
         // 뷰가 생성된 후 first responder 및 저장된 영역 설정
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            print("⏰ Delayed first responder setup")
             self.overlayWindow?.makeFirstResponderToOverlay()
             
             // 저장된 영역을 뷰에 강제로 설정
             if let view = self.overlayWindow?.getSelectionView() {
-                print("🔧 Force setting selectionRect to view: \(appState.lastLockedRect)")
                 view.selectionRect = appState.lastLockedRect
                 view.isLocked = true
                 view.needsDisplay = true
@@ -129,20 +113,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func presentOverlay() {
-        print("🎬 presentOverlay() called")
-        print("📦 overlayWindow: \(overlayWindow != nil ? "exists" : "nil")")
-        print("📦 appState: \(appState != nil ? "exists" : "nil")")
-        
         // appState가 nil이면 ContentView에서 설정될 때까지 대기
         if appState == nil {
-            print("⚠️ appState is nil, trying to get from ContentView...")
             // 잠시 후 다시 시도 (ContentView.onAppear가 실행되었을 수 있음)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 if let self = self, let appState = self.appState {
-                    print("✅ appState found after delay, creating overlay")
                     self.presentOverlayInternal()
-                } else {
-                    print("❌ appState still nil, cannot create overlay")
                 }
             }
             return
@@ -153,16 +129,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func presentOverlayInternal() {
         guard let appState = appState else {
-            print("❌ presentOverlayInternal: appState is still nil")
             return
         }
         
         if overlayWindow == nil {
-            print("🆕 Creating new OverlayWindow")
             overlayWindow = OverlayWindow()
         }
-        
-        print("🔗 Calling bind(appState)")
         
         // ⌘⇧1은 항상 새로 그리기 모드로 시작 (lastLockedRect 사용 안 함)
         appState.selectionState = .selecting
@@ -174,11 +146,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayWindow?.makeKeyAndOrderFront(nil)
         overlayWindow?.centerOnMainScreenIfNeeded()
         
-        print("👁️ Window should be visible now")
-        
         // 뷰가 생성된 후 first responder 설정 (약간의 지연 필요)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            print("⏰ Delayed first responder setup")
             self.overlayWindow?.makeFirstResponderToOverlay()
         }
 
@@ -189,10 +158,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func dismissOverlay() {
-        print("🚪 dismissOverlay() called")
-        print("📦 overlayWindow exists: \(overlayWindow != nil)")
-        print("📦 overlayWindow isVisible: \(overlayWindow?.isVisible ?? false)")
-        
         // TTS 재생 중지
         TextToSpeechService.shared.stop()
         
@@ -200,11 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let escMonitor {
             NSEvent.removeMonitor(escMonitor)
             self.escMonitor = nil
-            print("🗑️ ESC monitor removed")
         }
         
         guard let window = overlayWindow else {
-            print("⚠️ overlayWindow is nil")
             appState?.overlayVisible = false
             appState?.isTTSPlaying = false
             let savedRect = appState?.lastLockedRect ?? .zero
@@ -214,7 +177,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         guard window.isVisible else {
-            print("⚠️ Window is not visible, already dismissed")
             appState?.overlayVisible = false
             appState?.isTTSPlaying = false
             let savedRect = appState?.lastLockedRect ?? .zero
@@ -223,7 +185,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         
-        print("👋 Hiding overlay window")
         window.resignKey()
         window.orderOut(nil)
         window.isReleasedWhenClosed = false // 창을 완전히 닫지 않고 숨김
@@ -235,11 +196,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let savedRect = appState?.lastLockedRect ?? .zero
         appState?.reset()
         appState?.lastLockedRect = savedRect  // lastLockedRect 복원
-        print("💾 Preserved lastLockedRect after reset: \(appState?.lastLockedRect ?? .zero)")
-        
-        // 윈도우가 완전히 사라졌는지 확인
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            print("✅ Overlay dismissed, isVisible=\(window.isVisible)")
-        }
     }
 }

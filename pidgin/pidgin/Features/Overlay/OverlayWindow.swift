@@ -39,21 +39,16 @@ final class OverlayWindow: NSPanel {
 
     // SwiftUI(NSViewRepresentable)와 상태 연결
     func bind(appState: AppState) {
-        print("🔗 bind() called with appState")
         overlayController.window = self
         overlayController.bind(appState: appState)
         
         // bind 후 뷰를 다시 생성 (appState가 연결되었으므로)
-        print("🎨 Creating view with appState...")
         let root = overlayController.overlayView()
         let newHostingView = NSHostingView(rootView: root)
         contentView = newHostingView
         
-        print("🔄 View recreated after bind, contentView=\(contentView != nil ? "exists" : "nil")")
-        
         // 뷰가 업데이트되면 first responder 설정
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            print("⏰ Time to set first responder")
             self?.makeFirstResponderToOverlay()
         }
     }
@@ -182,7 +177,6 @@ private final class OverlayController {
     
     func setSelectionView(_ view: SelectionOverlayView) {
         self.selectionView = view
-        print("💾 SelectionView stored in controller")
     }
     
     func getSelectionView() -> SelectionOverlayView? {
@@ -192,24 +186,19 @@ private final class OverlayController {
     func overlayView() -> AnyView {
         // appState를 직접 캡처 (OverlayController의 weak 참조 문제 회피)
         guard let appState = self.appState else {
-            print("⚠️ overlayView: appState is nil, returning EmptyView")
             return AnyView(EmptyView())
         }
         
-        print("✅ overlayView: appState exists, creating OverlayView")
         return AnyView(
             OverlayView(controller: self,
                         onRectChange: { rect in appState.selectedRect = rect },
                         onEnterPressed: { [weak self] in
                             guard let self = self else { return }
                             guard appState.selectionState == .selecting, appState.selectedRect != .zero else {
-                                print("⚠️ onEnterPressed: 조건 불만족 - state=\(appState.selectionState), rect=\(appState.selectedRect)")
                                 return
                             }
-                            print("💾 Saving lastLockedRect: \(appState.selectedRect)")
                             appState.selectionState = .locked
                             appState.lastLockedRect = appState.selectedRect  // 영역 저장
-                            print("✅ lastLockedRect saved: \(appState.lastLockedRect)")
                             // 뷰를 직접 업데이트
                             if let view = self.selectionView {
                                 view.isLocked = true
@@ -218,13 +207,10 @@ private final class OverlayController {
                         onSelectionComplete: { [weak self] in
                             guard let self = self else { return }
                             guard appState.selectionState == .selecting, appState.selectedRect != .zero else {
-                                print("⚠️ onSelectionComplete: 조건 불만족 - state=\(appState.selectionState), rect=\(appState.selectedRect)")
                                 return
                             }
-                            print("💾 Saving lastLockedRect (from selection): \(appState.selectedRect)")
                             appState.selectionState = .locked
                             appState.lastLockedRect = appState.selectedRect  // 영역 저장
-                            print("✅ lastLockedRect saved: \(appState.lastLockedRect)")
                             // 뷰를 직접 업데이트
                             if let view = self.selectionView {
                                 view.isLocked = true
@@ -233,10 +219,8 @@ private final class OverlayController {
                         onEscapePressed: { [weak self] in
                             // ESC: Locked 상태에서 누르면 다시 선택 모드로, 아니면 오버레이 닫기
                             guard let self = self else { return }
-                            print("🔑 ESC pressed, current state: \(appState.selectionState)")
                             if appState.selectionState == .locked {
                                 // 새로 그리기 모드로 전환 (lastLockedRect는 유지)
-                                print("🔄 Unlocking, but keeping lastLockedRect: \(appState.lastLockedRect)")
                                 appState.selectionState = .selecting
                                 appState.selectedRect = .zero
                                 if let view = self.selectionView {
@@ -246,7 +230,6 @@ private final class OverlayController {
                                 }
                             } else {
                                 // 오버레이 닫기
-                                print("🚪 Closing overlay")
                                 self.window?.dismiss()
                             }
                         },
@@ -309,20 +292,15 @@ private struct OverlayView: NSViewRepresentable {
         // 뷰가 등록된 후 초기 선택 영역 설정 (appState.selectedRect 사용)
         if let appState = controller.appState {
             v.selectionRect = appState.selectedRect
-            print("🎯 Setting initial selectionRect: \(appState.selectedRect)")
         }
-        print("📦 SelectionOverlayView created and stored")
         // 오버레이 표시 즉시 ESC가 먹히도록 포커스
         DispatchQueue.main.async {
             if v.window?.makeFirstResponder(v) == true {
-                print("✅ First responder set in makeNSView")
+                // 성공
             } else {
-                print("❌ Failed to set first responder in makeNSView")
                 // 재시도
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if v.window?.makeFirstResponder(v) == true {
-                        print("✅ First responder set on retry")
-                    }
+                    _ = v.window?.makeFirstResponder(v)
                 }
             }
         }
