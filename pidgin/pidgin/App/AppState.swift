@@ -9,6 +9,7 @@ import Foundation
 import CoreGraphics
 import AppKit
 import Combine
+import AVFoundation
 
 @MainActor
 final class AppState: ObservableObject {
@@ -34,6 +35,58 @@ final class AppState: ObservableObject {
     
     // 마지막으로 Lock된 영역 저장
     @Published var lastLockedRect: CGRect = .zero
+    
+    // TTS 설정
+    @Published var ttsRate: Float = 0.5  // 0.0 ~ 1.0, 기본값 0.5
+    @Published var ttsVoiceGender: VoiceGender = .female  // 기본값: 여성
+    
+    enum VoiceGender {
+        case male
+        case female
+        
+        func preferredVoice() -> AVSpeechSynthesisVoice? {
+            // 한국어 음성 중에서 성별에 맞는 음성 선택
+            let allVoices = AVSpeechSynthesisVoice.speechVoices()
+            let koreanVoices = allVoices.filter { $0.language == "ko-KR" }
+            
+            print("🔊 Available Korean voices: \(koreanVoices.map { "\($0.name) (gender: \($0.gender.rawValue))" })")
+            
+            if self == .female {
+                // 여성 음성: gender 속성 우선, 없으면 이름으로 추정
+                let femaleVoice = koreanVoices.first { voice in
+                    voice.gender == .female || 
+                    voice.name.localizedCaseInsensitiveContains("Yuna") ||
+                    voice.name.localizedCaseInsensitiveContains("Sora") ||
+                    voice.name.localizedCaseInsensitiveContains("Nara") ||
+                    voice.name.localizedCaseInsensitiveContains("Yeri")
+                }
+                if let voice = femaleVoice {
+                    print("✅ Selected female voice: \(voice.name)")
+                    return voice
+                }
+            } else {
+                // 남성 음성: gender 속성 우선, 없으면 이름으로 추정
+                let maleVoice = koreanVoices.first { voice in
+                    voice.gender == .male ||
+                    voice.name.localizedCaseInsensitiveContains("Eddy") ||
+                    voice.name.localizedCaseInsensitiveContains("Yunjae") ||
+                    voice.name.localizedCaseInsensitiveContains("Yunja") ||
+                    voice.name.localizedCaseInsensitiveContains("Injoon") ||
+                    voice.name.localizedCaseInsensitiveContains("Injun") ||
+                    voice.name.localizedCaseInsensitiveContains("Flo")
+                }
+                if let voice = maleVoice {
+                    print("✅ Selected male voice: \(voice.name)")
+                    return voice
+                }
+            }
+            
+            // 기본 한국어 음성 (성별 구분 없이 첫 번째)
+            let defaultVoice = koreanVoices.first ?? AVSpeechSynthesisVoice(language: "ko-KR")
+            print("⚠️ Using default Korean voice: \(defaultVoice?.name ?? "nil")")
+            return defaultVoice
+        }
+    }
     
     var isLocked: Bool { selectionState == .locked }
     var isRequesting: Bool { selectionState == .requesting }

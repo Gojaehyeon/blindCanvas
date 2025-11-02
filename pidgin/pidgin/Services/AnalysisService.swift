@@ -34,6 +34,10 @@ final class AnalysisService {
             return
         }
         
+        // TTS 설정 업데이트 (분석 시작 전에 미리 설정)
+        print("🔧 Updating TTS settings: rate=\(appState.ttsRate), gender=\(appState.ttsVoiceGender)")
+        ttsService.updateSettings(rate: appState.ttsRate, voiceGender: appState.ttsVoiceGender)
+        
         // 1. 상태를 requesting로 변경
         appState.selectionState = .requesting
         appState.analysisMode = mode
@@ -72,6 +76,7 @@ final class AnalysisService {
             appState.selectionState = .locked
             appState.isTTSPlaying = true
             
+            // TTS 설정 적용하여 재생
             ttsService.speak(text: response) {
                 Task { @MainActor in
                     // 오버레이가 여전히 보이는지 확인 후 상태 업데이트

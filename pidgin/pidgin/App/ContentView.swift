@@ -14,19 +14,50 @@ struct ContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Pidgin").font(.system(size: 22, weight: .bold))
-            Text("⌘⇧1 또는 아래 버튼으로 오버레이를 열고, ESC로 닫을 수 있습니다.")
+            Text("⌘⇧1: 새로 그리기, ⌘⇧2: 저장된 영역으로 열기")
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
-                Button {
-                    (NSApp.delegate as? AppDelegate)?.toggleOverlay()
-                } label: {
-                    Label("영역 지정 (⌘⇧1)", systemImage: "cursorarrow.rays")
+            Divider()
+            
+            // TTS 설정
+            Group {
+                Text("TTS 설정").font(.system(size: 14, weight: .semibold))
+                
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("재생 속도: \(String(format: "%.1f", appState.ttsRate))")
+                            .font(.system(.caption))
+                        Slider(value: $appState.ttsRate, in: 0.0...1.0, step: 0.1)
+                            .frame(width: 200)
+                            .onChange(of: appState.ttsRate) { newValue in
+                                // 설정 변경 시 즉시 반영
+                                TextToSpeechService.shared.updateSettings(
+                                    rate: newValue,
+                                    voiceGender: appState.ttsVoiceGender
+                                )
+                            }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("음성 종류")
+                            .font(.system(.caption))
+                        Picker("", selection: $appState.ttsVoiceGender) {
+                            Text("음성 1").tag(AppState.VoiceGender.female)
+                            Text("음성 2").tag(AppState.VoiceGender.male)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 120)
+                        .onChange(of: appState.ttsVoiceGender) { newValue in
+                            // 설정 변경 시 즉시 반영
+                            TextToSpeechService.shared.updateSettings(
+                                rate: appState.ttsRate,
+                                voiceGender: newValue
+                            )
+                        }
+                    }
                 }
-                .keyboardShortcut("1", modifiers: [.command, .shift])
-
-                Spacer()
             }
+            .padding(.vertical, 8)
 
             Divider()
 
