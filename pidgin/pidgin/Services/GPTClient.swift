@@ -13,19 +13,33 @@ final class GPTClient {
     
     private let apiKey: String
     private let baseURL = URL(string: "https://api.openai.com/v1/chat/completions")!
+    private var currentTask: URLSessionDataTask?
+    
+    // 타임아웃 설정 (60초)
+    private let timeoutInterval: TimeInterval = 60.0
     
     private init() {
         self.apiKey = Secrets.openAIKey
+    }
+    
+    /// 현재 진행 중인 요청 취소
+    func cancelCurrentRequest() {
+        currentTask?.cancel()
+        currentTask = nil
     }
     
     /// 이미지와 텍스트를 GPT-4o에 전송하여 분석 결과를 받아옴
     /// - Parameters:
     ///   - image: 분석할 이미지
     ///   - prompt: 텍스트 프롬프트
+    ///   - model: 사용할 모델 (기본값: gpt-4o-mini, 더 빠르고 저렴함)
     /// - Returns: GPT 응답 텍스트
-    func analyzeImage(_ image: NSImage, withPrompt prompt: String) async throws -> String {
+    func analyzeImage(_ image: NSImage, withPrompt prompt: String, model: String = "gpt-4o-mini") async throws -> String {
+        // 이미지 최적화: 최대 크기 제한 (2048px) 및 압축
+        let optimizedImage = optimizeImage(image, maxDimension: 2048)
+        
         // 이미지를 Base64로 인코딩
-        guard let imageData = image.tiffRepresentation,
+        guard let imageData = optimizedImage.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: imageData),
               let pngData = bitmap.representation(using: .png, properties: [:]) else {
             throw GPTError.imageEncodingFailed
@@ -35,7 +49,7 @@ final class GPTClient {
         
         // 요청 본문 구성
         let requestBody: [String: Any] = [
-            "model": "gpt-4o",
+            "model": model,
             "messages": [
                 [
                     "role": "user",
@@ -47,7 +61,8 @@ final class GPTClient {
                         [
                             "type": "image_url",
                             "image_url": [
-                                "url": "data:image/png;base64,\(base64Image)"
+                                "url": "data:image/png;base64,\(base64Image)",
+                                "detail": "low"  // 이미지 해상도 낮춰서 더 빠르게 처리
                             ]
                         ]
                     ]
@@ -56,15 +71,39 @@ final class GPTClient {
             "max_tokens": 1000
         ]
         
-        // HTTP 요청 생성
+        // HTTP 요청 생성 (타임아웃 설정)
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = timeoutInterval
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
-        // 네트워크 요청 실행
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // 네트워크 요청 실행 (취소 가능하도록)
+        let (data, response): (Data, URLResponse) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Data, URLResponse), Error>) in
+            let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    if (error as NSError).code == NSURLErrorCancelled {
+                        continuation.resume(throwing: GPTError.requestCancelled)
+                    } else {
+                        continuation.resume(throwing: GPTError.networkError(error))
+                    }
+                    return
+                }
+                
+                guard let data = data, let response = response else {
+                    continuation.resume(throwing: GPTError.invalidResponse)
+                    return
+                }
+                
+                continuation.resume(returning: (data, response))
+            }
+            
+            currentTask = task
+            task.resume()
+        }
+        
+        currentTask = nil
         
         // 응답 확인
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -91,6 +130,31 @@ final class GPTClient {
         
         return content
     }
+    
+    /// 이미지 최적화: 크기 제한 및 리사이즈
+    private func optimizeImage(_ image: NSImage, maxDimension: CGFloat) -> NSImage {
+        let size = image.size
+        let maxSize = max(size.width, size.height)
+        
+        // 이미지가 최대 크기보다 작으면 그대로 반환
+        if maxSize <= maxDimension {
+            return image
+        }
+        
+        // 비율 유지하며 리사이즈
+        let scale = maxDimension / maxSize
+        let newSize = NSSize(width: size.width * scale, height: size.height * scale)
+        
+        let resizedImage = NSImage(size: newSize)
+        resizedImage.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: newSize),
+                   from: NSRect(origin: .zero, size: size),
+                   operation: .copy,
+                   fraction: 1.0)
+        resizedImage.unlockFocus()
+        
+        return resizedImage
+    }
 }
 
 // MARK: - Errors
@@ -101,6 +165,7 @@ enum GPTError: Error, LocalizedError {
     case httpError(Int)
     case apiError(String)
     case networkError(Error)
+    case requestCancelled
     
     var errorDescription: String? {
         switch self {
@@ -114,6 +179,8 @@ enum GPTError: Error, LocalizedError {
             return "API 오류: \(message)"
         case .networkError(let error):
             return "네트워크 오류: \(error.localizedDescription)"
+        case .requestCancelled:
+            return "요청이 취소되었습니다."
         }
     }
 }

@@ -18,6 +18,11 @@ final class AnalysisService {
     
     private init() {}
     
+    /// 현재 진행 중인 분석 요청 취소
+    func cancelCurrentAnalysis() {
+        gptClient.cancelCurrentRequest()
+    }
+    
     /// 전체 분석 파이프라인 실행: 캡처 → GPT 분석 → TTS 재생
     /// - Parameters:
     ///   - rect: 캡처할 화면 영역
@@ -84,12 +89,20 @@ final class AnalysisService {
             }
             
         } catch {
-            // 에러 처리
-            appState.errorMessage = error.localizedDescription
-            if appState.overlayVisible {
-                appState.selectionState = .locked
+            // 에러 처리 (취소된 경우는 에러 메시지 표시 안 함)
+            if case GPTError.requestCancelled = error {
+                // 취소된 경우는 상태만 리셋
+                if appState.overlayVisible {
+                    appState.selectionState = .locked
+                }
+                appState.isTTSPlaying = false
+            } else {
+                appState.errorMessage = error.localizedDescription
+                if appState.overlayVisible {
+                    appState.selectionState = .locked
+                }
+                appState.isTTSPlaying = false
             }
-            appState.isTTSPlaying = false
         }
     }
 }

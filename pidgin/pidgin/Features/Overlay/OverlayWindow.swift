@@ -217,8 +217,24 @@ private final class OverlayController {
                             }
                         },
                         onEscapePressed: { [weak self] in
-                            // ESC: Locked 상태에서 누르면 다시 선택 모드로, 아니면 오버레이 닫기
+                            // ESC: 재생 중이면 재생만 중지, 분석 중이면 분석 취소, Locked 상태에서 누르면 다시 선택 모드로, 아니면 오버레이 닫기
                             guard let self = self else { return }
+                            
+                            // 재생 중일 때는 재생만 중지하고 오버레이는 유지
+                            if appState.isTTSPlaying {
+                                TextToSpeechService.shared.stop()
+                                appState.isTTSPlaying = false
+                                return
+                            }
+                            
+                            // 분석 요청 중일 때는 분석 취소
+                            if appState.selectionState == .requesting {
+                                AnalysisService.shared.cancelCurrentAnalysis()
+                                appState.selectionState = .locked
+                                appState.errorMessage = "분석이 취소되었습니다."
+                                return
+                            }
+                            
                             if appState.selectionState == .locked {
                                 // 새로 그리기 모드로 전환 (lastLockedRect는 유지)
                                 appState.selectionState = .selecting
@@ -234,10 +250,17 @@ private final class OverlayController {
                             }
                         },
                         onSpacePressedInLocked: { [weak self] in
-                            // Space: 시적 해석 요청
+                            // Space: 시적 해석 요청 (재생 중이면 재생 중지 후 다시 분석)
                             guard let self = self else { return }
-                            guard appState.selectionState == .locked,
+                            // locked 상태이거나 재생 중일 때 동작
+                            guard (appState.selectionState == .locked || appState.isTTSPlaying),
                                   appState.selectedRect != .zero else { return }
+                            
+                            // 재생 중이면 재생 중지
+                            if appState.isTTSPlaying {
+                                TextToSpeechService.shared.stop()
+                                appState.isTTSPlaying = false
+                            }
                             
                             Task { @MainActor in
                                 await AnalysisService.shared.analyzeRegion(
@@ -248,10 +271,17 @@ private final class OverlayController {
                             }
                         },
                         onEnterPressedInLocked: { [weak self] in
-                            // Enter: 구조적 해석 요청
+                            // Enter: 구조적 해석 요청 (재생 중이면 재생 중지 후 다시 분석)
                             guard let self = self else { return }
-                            guard appState.selectionState == .locked,
+                            // locked 상태이거나 재생 중일 때 동작
+                            guard (appState.selectionState == .locked || appState.isTTSPlaying),
                                   appState.selectedRect != .zero else { return }
+                            
+                            // 재생 중이면 재생 중지
+                            if appState.isTTSPlaying {
+                                TextToSpeechService.shared.stop()
+                                appState.isTTSPlaying = false
+                            }
                             
                             Task { @MainActor in
                                 await AnalysisService.shared.analyzeRegion(
