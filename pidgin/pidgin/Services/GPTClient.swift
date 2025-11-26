@@ -34,9 +34,9 @@ final class GPTClient {
     ///   - prompt: 텍스트 프롬프트
     ///   - model: 사용할 모델 (기본값: gpt-4o-mini, 더 빠르고 저렴함)
     /// - Returns: GPT 응답 텍스트
-    func analyzeImage(_ image: NSImage, withPrompt prompt: String, model: String = "gpt-4o-mini") async throws -> String {
-        // 이미지 최적화: 최대 크기 제한 (1024px로 더 작게) 및 압축
-        let optimizedImage = optimizeImage(image, maxDimension: 1024)
+    func analyzeImage(_ image: NSImage, withPrompt prompt: String, model: String = "gpt-4.1-mini") async throws -> String {
+        // 이미지 최적화: 최대 크기 제한 (긴 변 기준 512px) 및 압축
+        let optimizedImage = optimizeImage(image, maxDimension: 512)
         
         // 이미지를 Base64로 인코딩 (JPEG로 압축하여 더 작게)
         guard let imageData = optimizedImage.tiffRepresentation,
