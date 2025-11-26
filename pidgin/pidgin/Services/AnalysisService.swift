@@ -73,12 +73,15 @@ final class AnalysisService {
             // 5. 응답 저장
             appState.analysisResponse = response
             
-            // 6. requesting 상태를 먼저 해제하고 TTS 재생 시작
+            // 6. requesting 상태를 먼저 해제
             appState.selectionState = .locked
-            appState.isTTSPlaying = true
             
-            // TTS 설정 적용하여 재생
-            ttsService.speak(text: response) {
+            // TTS 설정 적용하여 재생 (재생이 실제로 시작될 때 isTTSPlaying 설정)
+            ttsService.speak(text: response, onStarted: {
+                Task { @MainActor in
+                    appState.isTTSPlaying = true
+                }
+            }) {
                 Task { @MainActor in
                     // 오버레이가 여전히 보이는지 확인 후 상태 업데이트
                     appState.isTTSPlaying = false
@@ -156,12 +159,15 @@ final class AnalysisService {
             // 5. 응답 저장
             appState.analysisResponse = response
             
-            // 6. requesting 상태를 먼저 해제하고 TTS 재생 시작
+            // 6. requesting 상태를 먼저 해제
             appState.selectionState = .locked
-            appState.isTTSPlaying = true
             
-            // TTS 설정 적용하여 재생
-            ttsService.speak(text: response) {
+            // TTS 설정 적용하여 재생 (재생이 실제로 시작될 때 isTTSPlaying 설정)
+            ttsService.speak(text: response, onStarted: {
+                Task { @MainActor in
+                    appState.isTTSPlaying = true
+                }
+            }) {
                 Task { @MainActor in
                     // 오버레이가 여전히 보이는지 확인 후 상태 업데이트
                     appState.isTTSPlaying = false
