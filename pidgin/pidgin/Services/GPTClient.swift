@@ -35,17 +35,17 @@ final class GPTClient {
     ///   - model: 사용할 모델 (기본값: gpt-4o-mini, 더 빠르고 저렴함)
     /// - Returns: GPT 응답 텍스트
     func analyzeImage(_ image: NSImage, withPrompt prompt: String, model: String = "gpt-4o-mini") async throws -> String {
-        // 이미지 최적화: 최대 크기 제한 (2048px) 및 압축
-        let optimizedImage = optimizeImage(image, maxDimension: 2048)
+        // 이미지 최적화: 최대 크기 제한 (1024px로 더 작게) 및 압축
+        let optimizedImage = optimizeImage(image, maxDimension: 1024)
         
-        // 이미지를 Base64로 인코딩
+        // 이미지를 Base64로 인코딩 (JPEG로 압축하여 더 작게)
         guard let imageData = optimizedImage.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: imageData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else {
+              let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.7]) else {
             throw GPTError.imageEncodingFailed
         }
         
-        let base64Image = pngData.base64EncodedString()
+        let base64Image = jpegData.base64EncodedString()
         
         // 요청 본문 구성
         let requestBody: [String: Any] = [
@@ -61,14 +61,14 @@ final class GPTClient {
                         [
                             "type": "image_url",
                             "image_url": [
-                                "url": "data:image/png;base64,\(base64Image)",
+                                "url": "data:image/jpeg;base64,\(base64Image)",
                                 "detail": "low"  // 이미지 해상도 낮춰서 더 빠르게 처리
                             ]
                         ]
                     ]
                 ]
             ],
-            "max_tokens": 1000
+            "max_tokens": 200  // 프롬프트에서 120토큰 이내 요청하므로 200으로 충분
         ]
         
         // HTTP 요청 생성 (타임아웃 설정)

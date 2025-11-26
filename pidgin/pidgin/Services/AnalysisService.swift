@@ -73,12 +73,11 @@ final class AnalysisService {
             // 5. 응답 저장
             appState.analysisResponse = response
             
-            // 6. requesting 상태를 먼저 해제
-            appState.selectionState = .locked
-            
-            // TTS 설정 적용하여 재생 (재생이 실제로 시작될 때 isTTSPlaying 설정)
+            // 6. TTS 재생 시작 (재생이 실제로 시작될 때까지 requesting 상태 유지)
             ttsService.speak(text: response, onStarted: {
                 Task { @MainActor in
+                    // 재생이 시작되면 requesting 상태 해제
+                    appState.selectionState = .locked
                     appState.isTTSPlaying = true
                 }
             }) {
