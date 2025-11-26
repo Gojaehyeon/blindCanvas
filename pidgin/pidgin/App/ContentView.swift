@@ -9,13 +9,22 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var userText: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Pidgin").font(.system(size: 22, weight: .bold))
             Text("⌘⇧1: 새로 그리기, ⌘⇧2: 저장된 영역으로 열기")
                 .foregroundStyle(.secondary)
+
+            Divider()
+            
+            // 사용자 입력 텍스트
+            Group {
+                Text("그림 설명").font(.system(size: 14, weight: .semibold))
+                TextField("그리는 내용을 입력하세요 (예: 고양이, 풍경 등)", text: $appState.userText)
+                    .textFieldStyle(.roundedBorder)
+            }
+            .padding(.vertical, 8)
 
             Divider()
             

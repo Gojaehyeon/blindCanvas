@@ -23,6 +23,89 @@ final class AnalysisService {
         gptClient.cancelCurrentRequest()
     }
     
+    /// 전맹 시각장애인을 위한 그림 해설 분석 (Enter 키로 호출)
+    /// - Parameters:
+    ///   - rect: 캡처할 화면 영역
+    ///   - userText: 사용자가 입력한 그림 설명
+    ///   - appState: 상태 업데이트용 AppState
+    func analyzeRegionForBlindUser(
+        _ rect: CGRect,
+        userText: String,
+        appState: AppState
+    ) async {
+        // 오버레이가 보이는 상태인지 확인
+        guard appState.overlayVisible else {
+            return
+        }
+        
+        // TTS 설정 업데이트 (분석 시작 전에 미리 설정)
+        ttsService.updateSettings(rate: appState.ttsRate, voiceGender: appState.ttsVoiceGender)
+        
+        // 1. 상태를 requesting로 변경
+        appState.selectionState = .requesting
+        appState.analysisMode = nil
+        appState.errorMessage = nil
+        
+        do {
+            // 2. 화면 캡처
+            guard let image = try await captureService.captureRegion(rect) else {
+                throw AnalysisError.captureFailed
+            }
+            
+            // 오버레이가 여전히 보이는지 다시 확인 (캡처 후)
+            guard appState.overlayVisible else {
+                appState.selectionState = .locked
+                return
+            }
+            
+            // 3. 프롬프트 생성 (전맹 시각장애인용)
+            let prompt = PromptBuilder.blindUserPrompt(userText: userText)
+            
+            // 4. GPT 분석 요청
+            let response = try await gptClient.analyzeImage(image, withPrompt: prompt)
+            
+            // 오버레이가 여전히 보이는지 다시 확인 (GPT 응답 후)
+            guard appState.overlayVisible else {
+                appState.selectionState = .locked
+                return
+            }
+            
+            // 5. 응답 저장
+            appState.analysisResponse = response
+            
+            // 6. requesting 상태를 먼저 해제하고 TTS 재생 시작
+            appState.selectionState = .locked
+            appState.isTTSPlaying = true
+            
+            // TTS 설정 적용하여 재생
+            ttsService.speak(text: response) {
+                Task { @MainActor in
+                    // 오버레이가 여전히 보이는지 확인 후 상태 업데이트
+                    appState.isTTSPlaying = false
+                    if appState.overlayVisible {
+                        appState.selectionState = .locked
+                    }
+                }
+            }
+            
+        } catch {
+            // 에러 처리 (취소된 경우는 에러 메시지 표시 안 함)
+            if case GPTError.requestCancelled = error {
+                // 취소된 경우는 상태만 리셋
+                if appState.overlayVisible {
+                    appState.selectionState = .locked
+                }
+                appState.isTTSPlaying = false
+            } else {
+                appState.errorMessage = error.localizedDescription
+                if appState.overlayVisible {
+                    appState.selectionState = .locked
+                }
+                appState.isTTSPlaying = false
+            }
+        }
+    }
+    
     /// 전체 분석 파이프라인 실행: 캡처 → GPT 분석 → TTS 재생
     /// - Parameters:
     ///   - rect: 캡처할 화면 영역

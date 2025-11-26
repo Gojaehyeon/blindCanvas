@@ -271,22 +271,27 @@ private final class OverlayController {
                             }
                         },
                         onEnterPressedInLocked: { [weak self] in
-                            // Enter: 구조적 해석 요청 (재생 중이면 재생 중지 후 다시 분석)
+                            // Enter: 전맹 시각장애인용 그림 해설 요청
                             guard let self = self else { return }
-                            // locked 상태이거나 재생 중일 때 동작
-                            guard (appState.selectionState == .locked || appState.isTTSPlaying),
-                                  appState.selectedRect != .zero else { return }
                             
-                            // 재생 중이면 재생 중지
+                            // 재생 중이면 재생만 중지하고 종료 (새로운 분석 시작 안 함)
                             if appState.isTTSPlaying {
                                 TextToSpeechService.shared.stop()
                                 appState.isTTSPlaying = false
+                                return
                             }
                             
+                            // locked 상태에서만 새로운 해석 요청
+                            guard appState.selectionState == .locked,
+                                  appState.selectedRect != .zero else { return }
+                            
+                            // userText가 비어있으면 기본값 사용
+                            let userText = appState.userText.isEmpty ? "그림" : appState.userText
+                            
                             Task { @MainActor in
-                                await AnalysisService.shared.analyzeRegion(
+                                await AnalysisService.shared.analyzeRegionForBlindUser(
                                     appState.selectedRect,
-                                    mode: .structural,
+                                    userText: userText,
                                     appState: appState
                                 )
                             }

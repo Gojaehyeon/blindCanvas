@@ -231,7 +231,7 @@ final class SelectionOverlayView: NSView {
             // 일반 상태
             let hint: String
             if isLocked {
-                hint = "Locked: Space=시적, Enter=구조, ESC=닫기"
+                hint = "Locked: Enter=해설, ESC=닫기"
             } else {
                 hint = "드래그로 영역 지정 → Enter로 고정, ESC로 닫기"
             }

@@ -40,6 +40,9 @@ final class AppState: ObservableObject {
     @Published var ttsRate: Float = 0.5  // 0.0 ~ 1.0, 기본값 0.5
     @Published var ttsVoiceGender: VoiceGender = .female  // 기본값: 여성
     
+    // 사용자 입력 텍스트 (그림 설명용)
+    @Published var userText: String = ""
+    
     enum VoiceGender {
         case male
         case female
