@@ -249,27 +249,6 @@ private final class OverlayController {
                                 self.window?.dismiss()
                             }
                         },
-                        onSpacePressedInLocked: { [weak self] in
-                            // Space: 시적 해석 요청 (재생 중이면 재생 중지 후 다시 분석)
-                            guard let self = self else { return }
-                            // locked 상태이거나 재생 중일 때 동작
-                            guard (appState.selectionState == .locked || appState.isTTSPlaying),
-                                  appState.selectedRect != .zero else { return }
-                            
-                            // 재생 중이면 재생 중지
-                            if appState.isTTSPlaying {
-                                TextToSpeechService.shared.stop()
-                                appState.isTTSPlaying = false
-                            }
-                            
-                            Task { @MainActor in
-                                await AnalysisService.shared.analyzeRegion(
-                                    appState.selectedRect,
-                                    mode: .poetic,
-                                    appState: appState
-                                )
-                            }
-                        },
                         onEnterPressedInLocked: { [weak self] in
                             // Enter: 전맹 시각장애인용 그림 해설 요청
                             guard let self = self else { return }
@@ -307,7 +286,6 @@ private struct OverlayView: NSViewRepresentable {
     let onEnterPressed: () -> Void
     let onSelectionComplete: () -> Void
     let onEscapePressed: () -> Void
-    let onSpacePressedInLocked: () -> Void
     let onEnterPressedInLocked: () -> Void
 
     func makeNSView(context: Context) -> SelectionOverlayView {
@@ -316,7 +294,6 @@ private struct OverlayView: NSViewRepresentable {
         v.onEnterPressed = onEnterPressed
         v.onSelectionComplete = onSelectionComplete
         v.onEscapePressed = onEscapePressed
-        v.onSpacePressedInLocked = onSpacePressedInLocked
         v.onEnterPressedInLocked = onEnterPressedInLocked
         v.isLocked = controller.appState?.isLocked ?? false
         v.isRequesting = controller.appState?.isRequesting ?? false
@@ -346,7 +323,6 @@ private struct OverlayView: NSViewRepresentable {
         nsView.onEnterPressed = onEnterPressed
         nsView.onSelectionComplete = onSelectionComplete
         nsView.onEscapePressed = onEscapePressed
-        nsView.onSpacePressedInLocked = onSpacePressedInLocked
         nsView.onEnterPressedInLocked = onEnterPressedInLocked
         nsView.isLocked = controller.appState?.isLocked ?? false
         nsView.isRequesting = controller.appState?.isRequesting ?? false

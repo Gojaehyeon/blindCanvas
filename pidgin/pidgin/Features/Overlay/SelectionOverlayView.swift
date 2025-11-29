@@ -13,7 +13,6 @@ final class SelectionOverlayView: NSView {
     var onEnterPressed: (() -> Void)?
     var onSelectionComplete: (() -> Void)?
     var onEscapePressed: (() -> Void)?
-    var onSpacePressedInLocked: (() -> Void)?  // Locked 상태에서 Space 키
     var onEnterPressedInLocked: (() -> Void)?  // Locked 상태에서 Enter 키
     var isLocked: Bool = false {
         didSet { needsDisplay = true }
@@ -109,13 +108,8 @@ final class SelectionOverlayView: NSView {
             return
         }
         
-        // 재생 중일 때도 스페이스/엔터로 다시 분석 요청 가능
+        // Locked 상태 또는 재생 중: Enter로 해설 요청
         if isLocked || isTTSPlaying {
-            // Locked 상태 또는 재생 중: Space(시적), Enter(구조적) 분석 요청
-            if event.keyCode == 49 { // Space
-                onSpacePressedInLocked?()
-                return
-            }
             if event.keyCode == 36 { // Enter (Return)
                 onEnterPressedInLocked?()
                 return
