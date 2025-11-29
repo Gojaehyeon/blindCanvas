@@ -122,11 +122,23 @@ final class TextToSpeechService: NSObject {
         case .openAI:
             // OpenAI TTS API 호출 (비동기로 실행하되 즉시 시작)
             Task { @MainActor in
+                let startTime = Date()
                 do {
+                    print("🎤 GPT TTS 시작: \(text.prefix(50))...")
+                    let apiStartTime = Date()
                     let audioData = try await generateSpeech(text: text)
+                    let apiTime = Date().timeIntervalSince(apiStartTime)
+                    print("⏱️ API 호출 완료: \(String(format: "%.2f", apiTime))초, 데이터 크기: \(audioData.count) bytes")
+                    
+                    let playStartTime = Date()
                     await playAudio(data: audioData)
+                    let playTime = Date().timeIntervalSince(playStartTime)
+                    print("⏱️ 재생 시작 완료: \(String(format: "%.2f", playTime))초")
+                    
+                    let totalTime = Date().timeIntervalSince(startTime)
+                    print("⏱️ 총 소요 시간: \(String(format: "%.2f", totalTime))초")
                 } catch {
-                    print("TTS 오류: \(error.localizedDescription)")
+                    print("❌ TTS 오류: \(error.localizedDescription)")
                     // 에러 발생 시 completion 호출
                     currentCompletion?()
                     currentCompletion = nil
@@ -170,7 +182,7 @@ final class TextToSpeechService: NSObject {
     /// OpenAI TTS API를 사용하여 음성 생성
     private func generateSpeech(text: String) async throws -> Data {
         let requestBody: [String: Any] = [
-            "model": "tts-1-hd",  // 고품질 모델
+            "model": "tts-1",  // 빠른 모델 (tts-1-hd보다 훨씬 빠름)
             "input": text,
             "voice": selectedVoice().rawValue,
             "speed": convertRate(rate)
@@ -180,10 +192,18 @@ final class TextToSpeechService: NSObject {
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30.0
+        request.timeoutInterval = 15.0  // 타임아웃 줄임
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // 최적화된 URLSession 사용 (캐시 비활성화, 빠른 연결)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15.0
+        config.timeoutIntervalForResource = 15.0
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        let session = URLSession(configuration: config)
+        
+        let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TTSError.invalidResponse
@@ -203,58 +223,53 @@ final class TextToSpeechService: NSObject {
     
     /// 오디오 데이터 재생
     private func playAudio(data: Data) async {
+        let playStartTime = Date()
+        
         // 임시 파일에 저장
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("mp3")
         
         do {
+            // 파일 저장
+            let writeStartTime = Date()
             try data.write(to: tempURL)
+            let writeTime = Date().timeIntervalSince(writeStartTime)
+            print("⏱️ 파일 저장: \(String(format: "%.2f", writeTime))초")
+            
             currentTempURL = tempURL
             
+            // AVPlayerItem 생성
+            let createStartTime = Date()
             let playerItem = AVPlayerItem(url: tempURL)
             let player = AVPlayer(playerItem: playerItem)
             
             currentPlayer = player
             currentPlayerItem = playerItem
             
-            // 재생 완료 후 임시 파일 삭제
+            // Observer 추가
             playerItem.addObserver(self, forKeyPath: "status", options: [.new], context: nil)
             
-            // 재생 시작을 기다림 (status가 readyToPlay가 될 때까지)
-            await waitForPlayerReady(playerItem: playerItem)
+            let createTime = Date().timeIntervalSince(createStartTime)
+            print("⏱️ Player 생성: \(String(format: "%.2f", createTime))초")
             
-            // 재생 시작
-            player.play()
-            
-            // 재생이 시작되었음을 알림
+            // 재생 시작 알림을 즉시 호출
             onPlaybackStarted?()
             onPlaybackStarted = nil
             
+            // 재생 시작 (준비를 기다리지 않고 즉시)
+            player.play()
+            
+            let totalPlayTime = Date().timeIntervalSince(playStartTime)
+            print("⏱️ 재생 시작까지: \(String(format: "%.2f", totalPlayTime))초")
+            
         } catch {
-            print("오디오 재생 오류: \(error.localizedDescription)")
+            print("❌ 오디오 재생 오류: \(error.localizedDescription)")
             currentCompletion?()
             currentCompletion = nil
         }
     }
     
-    /// AVPlayerItem이 재생 준비될 때까지 대기
-    private func waitForPlayerReady(playerItem: AVPlayerItem) async {
-        if playerItem.status == .readyToPlay {
-            return
-        }
-        
-        // status 변경을 기다림
-        await withCheckedContinuation { continuation in
-            var observation: NSKeyValueObservation?
-            observation = playerItem.observe(\.status, options: [.new]) { item, _ in
-                if item.status == .readyToPlay || item.status == .failed {
-                    observation?.invalidate()
-                    continuation.resume()
-                }
-            }
-        }
-    }
     
     /// AVPlayerItem 상태 관찰
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
