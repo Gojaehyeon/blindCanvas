@@ -38,52 +38,60 @@ final class AppState: ObservableObject {
     
     // TTS 설정
     @Published var ttsRate: Float = 0.5  // 0.0 ~ 1.0, 기본값 0.5
-    @Published var ttsVoiceGender: VoiceGender = .male  // 기본값: 남성
+    @Published var ttsVoiceGender: VoiceGender = .male  // 기본값: 남성 (하위 호환성)
+    @Published var ttsProvider: TTSProvider = .apple  // 기본값: Apple TTS
+    @Published var ttsVoiceIdentifier: String = ""  // 선택된 음성 ID (빈 문자열이면 Yuna 기본값)
     
     // 사용자 입력 텍스트 (그림 설명용)
     @Published var userText: String = ""
+    
+    // 사용 가능한 Apple TTS 음성 목록 (Yuna, Eddy만)
+    static var availableAppleVoices: [AVSpeechSynthesisVoice] {
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        
+        // Yuna와 Eddy만 찾기
+        var voices: [AVSpeechSynthesisVoice] = []
+        
+        if let yuna = allVoices.first(where: { $0.name.localizedCaseInsensitiveContains("Yuna") }) {
+            voices.append(yuna)
+        }
+        
+        if let eddy = allVoices.first(where: { $0.name.localizedCaseInsensitiveContains("Eddy") }) {
+            voices.append(eddy)
+        }
+        
+        return voices
+    }
+    
+    enum TTSProvider {
+        case openAI    // OpenAI TTS (더 자연스러운 음성)
+        case apple     // Apple TTS (더 빠른 응답)
+    }
     
     enum VoiceGender {
         case male
         case female
         
         func preferredVoice() -> AVSpeechSynthesisVoice? {
-            // 한국어 음성 중에서 성별에 맞는 음성 선택
-            let allVoices = AVSpeechSynthesisVoice.speechVoices()
-            let koreanVoices = allVoices.filter { $0.language == "ko-KR" }
-            
-            if self == .female {
-                // 여성 음성: gender 속성 우선, 없으면 이름으로 추정
-                let femaleVoice = koreanVoices.first { voice in
-                    voice.gender == .female || 
-                    voice.name.localizedCaseInsensitiveContains("Yuna") ||
-                    voice.name.localizedCaseInsensitiveContains("Sora") ||
-                    voice.name.localizedCaseInsensitiveContains("Nara") ||
-                    voice.name.localizedCaseInsensitiveContains("Yeri")
-                }
-                if let voice = femaleVoice {
-                    return voice
-                }
-            } else {
-                // 남성 음성: gender 속성 우선, 없으면 이름으로 추정
-                let maleVoice = koreanVoices.first { voice in
-                    voice.gender == .male ||
-                    voice.name.localizedCaseInsensitiveContains("Eddy") ||
-                    voice.name.localizedCaseInsensitiveContains("Yunjae") ||
-                    voice.name.localizedCaseInsensitiveContains("Yunja") ||
-                    voice.name.localizedCaseInsensitiveContains("Injoon") ||
-                    voice.name.localizedCaseInsensitiveContains("Injun") ||
-                    voice.name.localizedCaseInsensitiveContains("Flo")
-                }
-                if let voice = maleVoice {
-                    return voice
-                }
-            }
-            
-            // 기본 한국어 음성 (성별 구분 없이 첫 번째)
-            let defaultVoice = koreanVoices.first ?? AVSpeechSynthesisVoice(language: "ko-KR")
-            return defaultVoice
+            // 이 메서드는 하위 호환성을 위해 유지하지만, 실제로는 ttsVoiceIdentifier를 사용
+            return nil
         }
+    }
+    
+    /// 선택된 음성 반환 (Apple TTS용)
+    func selectedAppleVoice() -> AVSpeechSynthesisVoice? {
+        // ttsVoiceIdentifier가 설정되어 있으면 해당 음성 사용
+        if !ttsVoiceIdentifier.isEmpty {
+            if let voice = AVSpeechSynthesisVoice(identifier: ttsVoiceIdentifier) {
+                return voice
+            }
+        }
+        
+        // 기본값: Yuna (ttsVoiceIdentifier가 비어있을 때)
+        let availableVoices = AppState.availableAppleVoices
+        return availableVoices.first(where: { $0.name.localizedCaseInsensitiveContains("Yuna") })
+            ?? availableVoices.first
+            ?? AVSpeechSynthesisVoice(language: "ko-KR")
     }
     
     var isLocked: Bool { selectionState == .locked }

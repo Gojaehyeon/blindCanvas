@@ -24,6 +24,11 @@ final class TextToSpeechService: NSObject {
     // 설정 (AppState에서 주입받음)
     var rate: Float = 0.5  // 0.0 ~ 1.0, OpenAI는 0.25 ~ 4.0이므로 변환 필요
     var voiceGender: AppState.VoiceGender = .female
+    var provider: AppState.TTSProvider = .openAI
+    var voiceIdentifier: String = ""  // 선택된 음성 ID (Apple TTS용)
+    
+    // Apple TTS용
+    private let synthesizer = AVSpeechSynthesizer()
     
     // OpenAI TTS 음성 옵션
     enum OpenAIVoice: String {
@@ -38,6 +43,7 @@ final class TextToSpeechService: NSObject {
     override init() {
         self.apiKey = Secrets.openAIKey
         super.init()
+        synthesizer.delegate = self
         
         // AVPlayer 재생 완료 알림 설정
         NotificationCenter.default.addObserver(
@@ -71,9 +77,11 @@ final class TextToSpeechService: NSObject {
     }
     
     /// 설정 업데이트
-    func updateSettings(rate: Float, voiceGender: AppState.VoiceGender) {
+    func updateSettings(rate: Float, voiceGender: AppState.VoiceGender, provider: AppState.TTSProvider, voiceIdentifier: String = "") {
         self.rate = rate
         self.voiceGender = voiceGender
+        self.provider = provider
+        self.voiceIdentifier = voiceIdentifier
     }
     
     /// OpenAI rate를 변환 (0.0~1.0 -> 0.5~1.5)
@@ -109,19 +117,54 @@ final class TextToSpeechService: NSObject {
         currentCompletion = completion
         onPlaybackStarted = onStarted
         
-        // OpenAI TTS API 호출 (비동기로 실행하되 즉시 시작)
-        Task { @MainActor in
-            do {
-                let audioData = try await generateSpeech(text: text)
-                await playAudio(data: audioData)
-            } catch {
-                print("TTS 오류: \(error.localizedDescription)")
-                // 에러 발생 시 completion 호출
-                currentCompletion?()
-                currentCompletion = nil
-                onPlaybackStarted = nil
+        // 제공자에 따라 다른 TTS 사용
+        switch provider {
+        case .openAI:
+            // OpenAI TTS API 호출 (비동기로 실행하되 즉시 시작)
+            Task { @MainActor in
+                do {
+                    let audioData = try await generateSpeech(text: text)
+                    await playAudio(data: audioData)
+                } catch {
+                    print("TTS 오류: \(error.localizedDescription)")
+                    // 에러 발생 시 completion 호출
+                    currentCompletion?()
+                    currentCompletion = nil
+                    onPlaybackStarted = nil
+                }
             }
+        case .apple:
+            // Apple TTS 사용 (즉시 재생)
+            speakWithAppleTTS(text: text)
         }
+    }
+    
+    /// Apple TTS로 재생
+    private func speakWithAppleTTS(text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        
+        // 선택된 음성 ID가 있으면 해당 음성 사용
+        let selectedVoice: AVSpeechSynthesisVoice?
+        if !voiceIdentifier.isEmpty {
+            selectedVoice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
+        } else {
+            // 기본값: Yuna
+            let allVoices = AVSpeechSynthesisVoice.speechVoices()
+            selectedVoice = allVoices.first { $0.name.localizedCaseInsensitiveContains("Yuna") }
+        }
+        
+        utterance.voice = selectedVoice 
+            ?? AVSpeechSynthesisVoice(language: "ko-KR")
+            ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = rate
+        utterance.pitchMultiplier = 1.0
+        utterance.volume = 1.0
+        
+        // 재생 시작 알림
+        onPlaybackStarted?()
+        onPlaybackStarted = nil
+        
+        synthesizer.speak(utterance)
     }
     
     /// OpenAI TTS API를 사용하여 음성 생성
@@ -264,12 +307,47 @@ final class TextToSpeechService: NSObject {
             currentTempURL = nil
         }
         
+        // Apple TTS 중지
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        
         currentCompletion = nil
+        onPlaybackStarted = nil
         currentPlayer = nil
     }
     
     var isSpeaking: Bool {
-        return currentPlayer?.rate ?? 0 > 0
+        switch provider {
+        case .openAI:
+            return currentPlayer?.rate ?? 0 > 0
+        case .apple:
+            return synthesizer.isSpeaking
+        }
+    }
+}
+
+// MARK: - AVSpeechSynthesizerDelegate
+
+extension TextToSpeechService: AVSpeechSynthesizerDelegate {
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didFinish utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor in
+            currentCompletion?()
+            currentCompletion = nil
+        }
+    }
+    
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didCancel utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor in
+            currentCompletion?()
+            currentCompletion = nil
+        }
     }
 }
 

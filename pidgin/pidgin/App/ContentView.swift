@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AVFAudio
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
@@ -32,36 +33,86 @@ struct ContentView: View {
             Group {
                 Text("TTS 설정").font(.system(size: 14, weight: .semibold))
                 
-                HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    // TTS 제공자 선택
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("재생 속도: \(String(format: "%.1f", appState.ttsRate))")
+                        Text("TTS 제공자")
                             .font(.system(.caption))
-                        Slider(value: $appState.ttsRate, in: 0.0...1.0, step: 0.1)
-                            .frame(width: 200)
-                            .onChange(of: appState.ttsRate) { newValue in
-                                // 설정 변경 시 즉시 반영
-                                TextToSpeechService.shared.updateSettings(
-                                    rate: newValue,
-                                    voiceGender: appState.ttsVoiceGender
-                                )
-                            }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("음성 종류")
-                            .font(.system(.caption))
-                        Picker("", selection: $appState.ttsVoiceGender) {
-                            Text("음성 1").tag(AppState.VoiceGender.female)
-                            Text("음성 2").tag(AppState.VoiceGender.male)
+                        Picker("", selection: $appState.ttsProvider) {
+                            Text("OpenAI TTS").tag(AppState.TTSProvider.openAI)
+                            Text("Apple TTS").tag(AppState.TTSProvider.apple)
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 120)
-                        .onChange(of: appState.ttsVoiceGender) { newValue in
-                            // 설정 변경 시 즉시 반영
+                        .frame(width: 200)
+                        .onChange(of: appState.ttsProvider) { newValue in
                             TextToSpeechService.shared.updateSettings(
                                 rate: appState.ttsRate,
-                                voiceGender: newValue
+                                voiceGender: appState.ttsVoiceGender,
+                                provider: newValue,
+                                voiceIdentifier: appState.ttsVoiceIdentifier
                             )
+                        }
+                    }
+                    
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("재생 속도: \(String(format: "%.1f", appState.ttsRate))")
+                                .font(.system(.caption))
+                            Slider(value: $appState.ttsRate, in: 0.0...1.0, step: 0.1)
+                                .frame(width: 200)
+                                .onChange(of: appState.ttsRate) { newValue in
+                                    // 설정 변경 시 즉시 반영
+                                    TextToSpeechService.shared.updateSettings(
+                                        rate: newValue,
+                                        voiceGender: appState.ttsVoiceGender,
+                                        provider: appState.ttsProvider,
+                                        voiceIdentifier: appState.ttsVoiceIdentifier
+                                    )
+                                }
+                        }
+                        
+                        // Apple TTS일 때만 음성 선택 표시
+                        if appState.ttsProvider == .apple {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("음성 선택")
+                                    .font(.system(.caption))
+                                Picker("", selection: $appState.ttsVoiceIdentifier) {
+                                    Text("Yuna (기본)").tag("")
+                                    ForEach(AppState.availableAppleVoices, id: \.identifier) { voice in
+                                        Text(voice.name).tag(voice.identifier)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 200)
+                                .onChange(of: appState.ttsVoiceIdentifier) { newValue in
+                                    TextToSpeechService.shared.updateSettings(
+                                        rate: appState.ttsRate,
+                                        voiceGender: appState.ttsVoiceGender,
+                                        provider: appState.ttsProvider,
+                                        voiceIdentifier: newValue
+                                    )
+                                }
+                            }
+                        } else {
+                            // OpenAI TTS일 때는 성별만 선택
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("음성 종류")
+                                    .font(.system(.caption))
+                                Picker("", selection: $appState.ttsVoiceGender) {
+                                    Text("여성").tag(AppState.VoiceGender.female)
+                                    Text("남성").tag(AppState.VoiceGender.male)
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(width: 120)
+                                .onChange(of: appState.ttsVoiceGender) { newValue in
+                                    TextToSpeechService.shared.updateSettings(
+                                        rate: appState.ttsRate,
+                                        voiceGender: newValue,
+                                        provider: appState.ttsProvider,
+                                        voiceIdentifier: appState.ttsVoiceIdentifier
+                                    )
+                                }
+                            }
                         }
                     }
                 }

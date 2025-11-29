@@ -39,7 +39,7 @@ final class AnalysisService {
         }
         
         // TTS 설정 업데이트 (분석 시작 전에 미리 설정)
-        ttsService.updateSettings(rate: appState.ttsRate, voiceGender: appState.ttsVoiceGender)
+        ttsService.updateSettings(rate: appState.ttsRate, voiceGender: appState.ttsVoiceGender, provider: appState.ttsProvider, voiceIdentifier: appState.ttsVoiceIdentifier)
         
         // 1. 상태를 requesting로 변경
         appState.selectionState = .requesting
